@@ -1,0 +1,1461 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paint Pad</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #20242a;
+      --panel: #ffffff;
+      --panel-border: #cfd5dd;
+      --accent: #0f766e;
+      --accent-soft: #d8f3ee;
+      --canvas: #ffffff;
+      --page: #e9edf2;
+      --danger: #c2410c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: var(--page);
+    }
+
+    body {
+      display: grid;
+      place-items: stretch;
+    }
+
+    .app {
+      position: relative;
+      min-width: 320px;
+      min-height: 100%;
+      isolation: isolate;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: var(--canvas);
+      cursor: crosshair;
+      touch-action: none;
+      transform-origin: 0 0;
+    }
+
+    .panel {
+      position: fixed;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgb(38 45 56 / 18%);
+      backdrop-filter: blur(10px);
+    }
+
+    .font-panel {
+      left: 14px;
+      bottom: 14px;
+    }
+
+    .marker-label, .shapes-label, .images-label, .toolbox-toggle-btn {
+      position: fixed;
+      z-index: 2;
+      padding: 10px 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      box-shadow: 0 12px 28px rgb(38 45 56 / 14%);
+      backdrop-filter: blur(10px);
+      color: var(--ink);
+      font: 700 14px/1 Arial, Helvetica, sans-serif;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .marker-label {
+      left: 14px;
+      top: 14px;
+    }
+
+    .shapes-label {
+      left: 104px;
+      top: 14px;
+    }
+
+    .images-label {
+      left: 194px;
+      top: 14px;
+    }
+
+    .toolbox-toggle-btn {
+      right: 14px;
+      top: 14px;
+    }
+
+    .marker-label:hover, .shapes-label:hover, .images-label:hover, .toolbox-toggle-btn:hover {
+      border-color: #8ea0b3;
+      background: #eef3f8;
+    }
+
+    .marker-panel, .shapes-panel, .images-panel {
+      position: fixed;
+      z-index: 3;
+      width: 232px;
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 96%, transparent);
+      box-shadow: 0 14px 30px rgb(38 45 56 / 18%);
+      backdrop-filter: blur(10px);
+    }
+
+    .marker-panel {
+      left: 14px;
+      top: 60px;
+    }
+
+    .shapes-panel {
+      left: 104px;
+      top: 60px;
+    }
+
+    .images-panel {
+      left: 194px;
+      top: 60px;
+    }
+
+    .marker-panel[hidden], .shapes-panel[hidden], .images-panel[hidden], .tools-panel[hidden] {
+      display: none !important;
+    }
+
+    .marker-field {
+      display: grid;
+      gap: 6px;
+      font: 700 12px/1 Arial, Helvetica, sans-serif;
+    }
+
+    .marker-field select,
+    .marker-field input {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .marker-field select {
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 7px 8px;
+      background: #ffffff;
+      color: var(--ink);
+      font: 600 12px/1 Arial, Helvetica, sans-serif;
+      cursor: pointer;
+    }
+
+    .marker-field input[type="url"], .marker-field input[type="file"], .marker-field input[type="number"] {
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      background: #ffffff;
+      color: var(--ink);
+      font: 400 12px/1 Arial, Helvetica, sans-serif;
+    }
+
+    .engine-links {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 4px;
+    }
+    
+    .engine-links a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 11px;
+    }
+    
+    .engine-links a:hover {
+      text-decoration: underline;
+    }
+
+    .tools-panel {
+      position: fixed;
+      right: 14px;
+      top: 60px;
+      z-index: 4;
+      flex-direction: column;
+      align-items: stretch;
+      max-width: min(340px, calc(100vw - 28px));
+      cursor: move;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .tools-panel-header {
+      font: 700 11px Arial, sans-serif;
+      color: #717f91;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      pointer-events: none;
+      text-align: center;
+      border-bottom: 1px dashed var(--panel-border);
+      padding-bottom: 6px;
+    }
+
+    .tools-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-start;
+    }
+
+    .tool-button,
+    .chip {
+      width: 42px;
+      height: 42px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: #f8fafc;
+      color: var(--ink);
+      font: 700 18px/1 Arial, Helvetica, sans-serif;
+      cursor: pointer;
+    }
+
+    .tool-button.named {
+      width: auto;
+      min-width: 68px;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+
+    .tool-button.wide {
+      width: auto;
+      min-width: 104px;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+
+    .color-picker {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .tool-button:hover,
+    .chip:hover,
+    .swatch:hover {
+      border-color: #8ea0b3;
+      background: #eef3f8;
+    }
+
+    .tool-button[aria-pressed="true"],
+    .chip[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: #064e49;
+    }
+
+    .tool-button.danger {
+      color: var(--danger);
+    }
+
+    .swatch {
+      width: 32px;
+      height: 32px;
+      border: 2px solid #ffffff;
+      outline: 1px solid var(--panel-border);
+      border-radius: 50%;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .swatch[aria-pressed="true"] {
+      outline: 3px solid var(--accent);
+    }
+
+    .custom-color {
+      position: relative;
+    }
+
+    .custom-color::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      bottom: -2px;
+      width: 10px;
+      height: 10px;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .size-control {
+      width: 116px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 4px;
+    }
+
+    .brush-control {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: #f8fafc;
+      font: 700 13px/1 Arial, Helvetica, sans-serif;
+    }
+
+    .brush-control select {
+      max-width: 148px;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      background: #ffffff;
+      color: var(--ink);
+      font: 600 12px/1 Arial, Helvetica, sans-serif;
+      cursor: pointer;
+    }
+
+    .size-control input {
+      width: 78px;
+      accent-color: var(--accent);
+    }
+
+    .size-dot {
+      width: var(--dot-size);
+      height: var(--dot-size);
+      min-width: var(--dot-size);
+      border-radius: 50%;
+      background: var(--ink);
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 720px) {
+      .panel {
+        padding: 8px;
+      }
+
+      .font-panel {
+        left: 10px;
+        bottom: 10px;
+      }
+
+      .marker-label, .shapes-label, .images-label, .toolbox-toggle-btn {
+        padding: 9px 12px;
+        font-size: 13px;
+      }
+      .marker-label { left: 10px; top: 10px; }
+      .shapes-label { left: 96px; top: 10px; }
+      .images-label { left: 180px; top: 10px; }
+      .toolbox-toggle-btn { right: 10px; top: 10px; }
+
+      .marker-panel, .shapes-panel, .images-panel {
+        top: 56px;
+        width: min(232px, calc(100vw - 20px));
+      }
+
+      .marker-panel { left: 10px; }
+      .shapes-panel { left: 96px; }
+      .images-panel { left: 10px; }
+
+      .tools-panel {
+        max-width: 280px;
+      }
+
+      .tool-button,
+      .chip {
+        width: 38px;
+        height: 38px;
+      }
+
+      .tool-button.named {
+        min-width: 62px;
+        padding: 0 9px;
+        font-size: 12px;
+      }
+
+      .tool-button.wide {
+        min-width: 96px;
+        padding: 0 9px;
+        font-size: 12px;
+      }
+
+      .size-control {
+        width: 108px;
+      }
+
+      .size-control input {
+        width: 70px;
+      }
+
+      .brush-control {
+        width: 100%;
+        height: 38px;
+        justify-content: space-between;
+      }
+
+      .brush-control select {
+        max-width: 146px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="Paint drawing app">
+    <canvas id="paintCanvas" aria-label="Drawing canvas"></canvas>
+
+    <button id="markersButton" class="marker-label" type="button" aria-expanded="false" aria-controls="markersPanel">Markers</button>
+    <section id="markersPanel" class="marker-panel" aria-label="Marker options" hidden>
+      <label class="marker-field">
+        <span>Marker</span>
+        <select id="markerSelect">
+          <option value="calligraphy">Calligraphy pen</option>
+          <option value="crayon">Crayon</option>
+          <option value="pencil">Pencil</option>
+        </select>
+      </label>
+      <label class="marker-field">
+        <span>Size</span>
+        <input id="markerSizeInput" type="range" min="2" max="48" value="14">
+      </label>
+      <label class="marker-field">
+        <span>Opacity</span>
+        <input id="markerOpacityInput" type="range" min="10" max="100" value="85">
+      </label>
+    </section>
+
+    <button id="shapesButton" class="shapes-label" type="button" aria-expanded="false" aria-controls="shapesPanel">Shapes</button>
+    <section id="shapesPanel" class="shapes-panel" aria-label="Shape options" hidden>
+      <label class="marker-field">
+        <span>Active Shape</span>
+        <select id="shapeSelect">
+          <option value="none">-- Draw Freehand --</option>
+          <option value="rectangle">Rectangle</option>
+          <option value="square">Square</option>
+          <option value="triangle">Triangle</option>
+          <option value="oval">Oval</option>
+          <option value="pentagon">Pentagon</option>
+          <option value="curve">Curve</option>
+          <option value="star">Four-point Star</option>
+          <option value="arrowUp">Down Arrow</option>
+          <option value="arrowDown">Up Arrow</option>
+          <option value="arrowLeft">Left Arrow</option>
+          <option value="arrowRight">Right Arrow</option>
+        </select>
+      </label>
+    </section>
+
+    <button id="imagesButton" class="images-label" type="button" aria-expanded="false" aria-controls="imagesPanel">Images</button>
+    <section id="imagesPanel" class="images-panel" aria-label="Image options" hidden>
+      
+      <div id="imageSizeControls" style="display: none; gap: 8px; margin-bottom: 8px;">
+        <label class="marker-field" style="flex: 1;">
+          <span>Width (px)</span>
+          <input id="imgWidthInput" type="number" min="10" max="4000">
+        </label>
+        <label class="marker-field" style="flex: 1;">
+          <span>Height (px)</span>
+          <input id="imgHeightInput" type="number" min="10" max="4000">
+        </label>
+      </div>
+
+      <div id="imageActionControls" style="display: none; gap: 8px; margin-bottom: 8px;">
+         <button id="applyImageBtn" class="tool-button wide" style="flex:1; height:32px; font-size:12px; background:var(--accent); color:#fff; border:none;" title="Stamp image to canvas">Apply Image</button>
+         <button id="cancelImageBtn" class="tool-button wide danger" style="flex:1; height:32px; font-size:12px;" title="Discard image">Cancel</button>
+      </div>
+      
+      <div id="imageDividerControls" style="display: none; margin: 6px 0; border-top: 1px dashed var(--panel-border);"></div>
+
+      <label class="marker-field">
+        <span>Upload Local Image</span>
+        <input id="imageUploadInput" type="file" accept="image/*">
+      </label>
+      
+      <div style="margin: 6px 0; border-top: 1px dashed var(--panel-border);"></div>
+      
+      <label class="marker-field" title="Note: Some sites block direct URL rendering. If it fails, save the image first!">
+        <span>Paste Web URL</span>
+        <input id="imageUrlInput" type="url" placeholder="https://example.com/img.jpg">
+        <button id="loadUrlButton" class="tool-button wide" style="height: 32px; font-size: 12px; margin-top: 4px; min-width: 100%;">Load URL</button>
+      </label>
+
+      <div style="margin: 6px 0; border-top: 1px dashed var(--panel-border);"></div>
+      
+      <div class="marker-field" style="text-align: center;">
+        <span>Find Web Images</span>
+        <div class="engine-links">
+          <a href="https://images.google.com" target="_blank">Google</a> |
+          <a href="https://www.bing.com/images" target="_blank">Bing</a> |
+          <a href="https://images.search.yahoo.com" target="_blank">Yahoo</a>
+        </div>
+        <p style="font-size: 10.5px; color: #717f91; margin: 6px 0 0 0; line-height: 1.3;">
+          <strong>Tip:</strong> Copy any image online, then click here and press <b>Ctrl+V</b> to instantly paste it!
+        </p>
+      </div>
+    </section>
+
+    <button id="toolboxButton" class="toolbox-toggle-btn" type="button" aria-expanded="true" aria-controls="toolsPanel">Toolbox</button>
+    <section id="toolsPanel" class="panel tools-panel" aria-label="Drawing tools">
+      <div class="tools-panel-header">Drag Toolbox</div>
+      <div class="tools-grid">
+        <button class="tool-button named" type="button" data-tool="brush" aria-pressed="true" title="Paint">Paint</button>
+        <button class="tool-button named" type="button" data-tool="paint" aria-pressed="false" title="Fill">Fill</button>
+        <button class="tool-button named" type="button" data-tool="eraser" aria-pressed="false" title="Erase">Erase</button>
+        <button class="tool-button named" type="button" data-tool="magnifier" aria-pressed="false" title="Zoom">Zoom</button>
+        <button id="undoButton" class="tool-button named" type="button" title="Undo">Undo</button>
+        <button id="clearButton" class="tool-button danger" type="button" title="Clear canvas">X</button>
+
+        <button class="swatch" type="button" data-color="#20242a" aria-pressed="true" title="Black" style="background:#20242a"></button>
+        <button class="swatch" type="button" data-color="#dc2626" aria-pressed="false" title="Red" style="background:#dc2626"></button>
+        <button class="swatch" type="button" data-color="#2563eb" aria-pressed="false" title="Blue" style="background:#2563eb"></button>
+        <button class="swatch" type="button" data-color="#16a34a" aria-pressed="false" title="Green" style="background:#16a34a"></button>
+        <button class="swatch" type="button" data-color="#facc15" aria-pressed="false" title="Yellow" style="background:#facc15"></button>
+        <button class="swatch" type="button" data-color="#c0c0c0" aria-pressed="false" title="Silver" style="background:#c0c0c0"></button>
+        <button class="swatch" type="button" data-color="#8b4513" aria-pressed="false" title="Brown" style="background:#8b4513"></button>
+        <button class="swatch" type="button" data-color="#d4af37" aria-pressed="false" title="Gold" style="background:#d4af37"></button>
+        <button class="swatch" type="button" data-color="#f97316" aria-pressed="false" title="Orange" style="background:#f97316"></button>
+        <button class="swatch" type="button" data-color="#ec4899" aria-pressed="false" title="Pink" style="background:#ec4899"></button>
+        <button id="customColorSwatch" class="swatch custom-color" type="button" data-color="#8b5cf6" aria-pressed="false" title="Custom color" style="background:#8b5cf6"></button>
+        <button id="editColorButton" class="tool-button wide" type="button" title="Color options">Color Options</button>
+        <button id="songsButton" class="tool-button wide" type="button" title="2G songs with Google Gemini music">2G Songs</button>
+        <input id="colorInput" class="color-picker" type="color" value="#8b5cf6" aria-label="Edit color">
+
+        <label class="brush-control" title="Brushes">
+          <span>Brushes</span>
+          <select id="brushSelect" aria-label="Brushes">
+            <option value="airbrush">Airbrush</option>
+            <option value="watercolor">Watercolor brush</option>
+            <option value="oil">Oil brush</option>
+          </select>
+        </label>
+
+        <label class="size-control" title="Brush size">
+          <span class="sr-only">Brush size</span>
+          <span id="sizeDot" class="size-dot" style="--dot-size: 10px"></span>
+          <input id="sizeInput" type="range" min="2" max="42" value="10">
+        </label>
+      </div>
+    </section>
+
+    <section class="panel font-panel" aria-label="Background controls">
+      <button id="backgroundButton" class="chip tool-button wide" type="button" title="Set background color">Background</button>
+    </section>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#paintCanvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    const toolButtons = [...document.querySelectorAll("[data-tool]")];
+    const swatches = [...document.querySelectorAll("[data-color]")];
+    
+    const markersButton = document.querySelector("#markersButton");
+    const markersPanel = document.querySelector("#markersPanel");
+    const shapesButton = document.querySelector("#shapesButton");
+    const shapesPanel = document.querySelector("#shapesPanel");
+    const imagesButton = document.querySelector("#imagesButton");
+    const imagesPanel = document.querySelector("#imagesPanel");
+    const toolboxButton = document.querySelector("#toolboxButton");
+    const toolsPanel = document.querySelector("#toolsPanel");
+    
+    const markerSelect = document.querySelector("#markerSelect");
+    const markerSizeInput = document.querySelector("#markerSizeInput");
+    const markerOpacityInput = document.querySelector("#markerOpacityInput");
+    const shapeSelect = document.querySelector("#shapeSelect");
+    
+    const imageUploadInput = document.querySelector("#imageUploadInput");
+    const imageUrlInput = document.querySelector("#imageUrlInput");
+    const loadUrlButton = document.querySelector("#loadUrlButton");
+    const imgWidthInput = document.querySelector("#imgWidthInput");
+    const imgHeightInput = document.querySelector("#imgHeightInput");
+    const applyImageBtn = document.querySelector("#applyImageBtn");
+    const cancelImageBtn = document.querySelector("#cancelImageBtn");
+    
+    const backgroundButton = document.querySelector("#backgroundButton");
+    const undoButton = document.querySelector("#undoButton");
+    const clearButton = document.querySelector("#clearButton");
+    const editColorButton = document.querySelector("#editColorButton");
+    const songsButton = document.querySelector("#songsButton");
+    const colorInput = document.querySelector("#colorInput");
+    const customColorSwatch = document.querySelector("#customColorSwatch");
+    const brushSelect = document.querySelector("#brushSelect");
+    const sizeInput = document.querySelector("#sizeInput");
+    const sizeDot = document.querySelector("#sizeDot");
+
+    const state = {
+      tool: "brush",
+      color: "#20242a",
+      brush: brushSelect.value,
+      marker: markerSelect.value,
+      markerSize: Number(markerSizeInput.value),
+      markerOpacity: Number(markerOpacityInput.value) / 100,
+      markerActive: false,
+      activeShape: "none",
+      size: Number(sizeInput.value),
+      zoom: 1,
+      drawing: false,
+      startPoint: null,
+      lastPoint: null,
+      history: [],
+      draggedBuffer: null,
+
+      // Floating Image specific state
+      floatingImage: null,
+      canvasBeforeImage: null,
+      imageDragState: null, // 'move', 'nw', 'ne', 'sw', 'se'
+      dragStartPoint: null,
+      dragStartImg: null
+    };
+
+    function resizeCanvas() {
+      const snapshot = canvas.width && canvas.height
+        ? context.getImageData(0, 0, canvas.width, canvas.height)
+        : null;
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(window.innerWidth * ratio);
+      canvas.height = Math.floor(window.innerHeight * ratio);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+      if (snapshot) {
+        const restored = document.createElement("canvas");
+        restored.width = snapshot.width;
+        restored.height = snapshot.height;
+        restored.getContext("2d").putImageData(snapshot, 0, 0);
+        context.drawImage(restored, 0, 0, snapshot.width / ratio, snapshot.height / ratio);
+      }
+    }
+
+    function saveHistory() {
+      state.history.push(context.getImageData(0, 0, canvas.width, canvas.height));
+      if (state.history.length > 20) {
+        state.history.shift();
+      }
+    }
+
+    function pointFromEvent(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) / state.zoom,
+        y: (event.clientY - rect.top) / state.zoom
+      };
+    }
+
+    function strokeWidth() {
+      if (state.markerActive) {
+        if (state.marker === "calligraphy") return state.markerSize * 1.25;
+        return state.markerSize;
+      }
+      if (state.brush === "oil") return state.size * 1.6;
+      if (state.brush === "watercolor") return state.size * 1.35;
+      return state.size;
+    }
+
+    function effectiveOpacity() {
+      return state.markerActive ? state.markerOpacity : 1;
+    }
+
+    function hexToRgb(hex) {
+      const normalized = hex.replace("#", "");
+      return {
+        r: parseInt(normalized.slice(0, 2), 16),
+        g: parseInt(normalized.slice(2, 4), 16),
+        b: parseInt(normalized.slice(4, 6), 16)
+      };
+    }
+
+    function drawAirbrush(point) {
+      const color = hexToRgb(state.color);
+      const radius = strokeWidth() * 1.4;
+      const dots = Math.max(12, Math.floor(radius * 3));
+      context.save();
+      context.globalCompositeOperation = "source-over";
+      context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.18)`;
+
+      for (let index = 0; index < dots; index += 1) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * radius;
+        context.beginPath();
+        context.arc(
+          point.x + Math.cos(angle) * distance,
+          point.y + Math.sin(angle) * distance,
+          Math.max(1, state.size / 9),
+          0,
+          Math.PI * 2
+        );
+        context.fill();
+      }
+      context.restore();
+    }
+
+    function drawAirbrushLine(from, to) {
+      const distance = Math.hypot(to.x - from.x, to.y - from.y);
+      const steps = Math.max(1, Math.ceil(distance / 5));
+
+      for (let step = 0; step <= steps; step += 1) {
+        const amount = step / steps;
+        drawAirbrush({
+          x: from.x + (to.x - from.x) * amount,
+          y: from.y + (to.y - from.y) * amount
+        });
+      }
+    }
+
+    function drawLine(from, to) {
+      if (state.tool !== "eraser" && state.markerActive) {
+        drawMarkerLine(from, to);
+        return;
+      }
+      if (state.tool !== "eraser" && state.brush === "airbrush") {
+        drawAirbrushLine(from, to);
+        return;
+      }
+
+      const color = hexToRgb(state.color);
+      context.save();
+      context.globalCompositeOperation = state.tool === "eraser" ? "destination-out" : "source-over";
+      context.globalAlpha = state.tool === "eraser" ? 1 : effectiveOpacity();
+      context.strokeStyle = state.color;
+      context.lineWidth = strokeWidth();
+      context.lineCap = "round";
+      context.lineJoin = "round";
+
+      if (state.tool !== "eraser" && state.brush === "watercolor") {
+        context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.38)`;
+      }
+
+      if (state.tool !== "eraser" && state.brush === "oil") {
+        context.shadowColor = `rgba(${color.r}, ${color.g}, ${color.b}, 0.28)`;
+        context.shadowBlur = Math.max(2, state.size / 3);
+      }
+
+      context.beginPath();
+      context.moveTo(from.x, from.y);
+      context.lineTo(to.x, to.y);
+      context.stroke();
+
+      if (state.tool !== "eraser" && state.brush === "oil") {
+        context.lineWidth = Math.max(1, strokeWidth() * 0.45);
+        context.strokeStyle = "rgba(255, 255, 255, 0.18)";
+        context.beginPath();
+        context.moveTo(from.x - 1, from.y - 1);
+        context.lineTo(to.x - 1, to.y - 1);
+        context.stroke();
+      }
+      context.restore();
+    }
+
+    function drawMarkerLine(from, to) {
+      const color = hexToRgb(state.color);
+      context.save();
+      context.globalCompositeOperation = "source-over";
+      context.globalAlpha = state.markerOpacity;
+      context.strokeStyle = state.color;
+      context.lineCap = state.marker === "pencil" ? "butt" : "round";
+      context.lineJoin = "round";
+
+      if (state.marker === "calligraphy") {
+        context.lineWidth = strokeWidth();
+        context.beginPath();
+        context.moveTo(from.x - 3, from.y + 2);
+        context.lineTo(to.x - 3, to.y + 2);
+        context.stroke();
+        context.lineWidth = Math.max(1, state.markerSize * 0.34);
+        context.beginPath();
+        context.moveTo(from.x + 4, from.y - 3);
+        context.lineTo(to.x + 4, to.y - 3);
+        context.stroke();
+      } else if (state.marker === "crayon") {
+        context.lineWidth = strokeWidth();
+        context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${state.markerOpacity})`;
+        context.beginPath();
+        context.moveTo(from.x, from.y);
+        context.lineTo(to.x, to.y);
+        context.stroke();
+
+        for (let index = 0; index < 8; index += 1) {
+          const offset = (Math.random() - 0.5) * state.markerSize;
+          context.globalAlpha = state.markerOpacity * 0.38;
+          context.lineWidth = Math.max(1, state.markerSize * 0.12);
+          context.beginPath();
+          context.moveTo(from.x + offset, from.y - offset);
+          context.lineTo(to.x + offset, to.y - offset);
+          context.stroke();
+        }
+      } else {
+        context.lineWidth = Math.max(1, strokeWidth() * 0.45);
+        context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${state.markerOpacity})`;
+        context.beginPath();
+        context.moveTo(from.x, from.y);
+        context.lineTo(to.x, to.y);
+        context.stroke();
+      }
+      context.restore();
+    }
+
+    function drawPreviewShape(start, current, shapeType) {
+      if (shapeType === "none") return;
+      context.save();
+      context.globalCompositeOperation = "source-over";
+      context.globalAlpha = effectiveOpacity();
+      context.strokeStyle = state.color;
+      context.lineWidth = strokeWidth();
+      context.lineCap = "round";
+      context.lineJoin = "round";
+
+      let x = start.x; let y = start.y;
+      let w = current.x - start.x; let h = current.y - start.y;
+
+      context.beginPath();
+      switch (shapeType) {
+        case "rectangle": context.rect(x, y, w, h); break;
+        case "square": {
+          let side = Math.max(Math.abs(w), Math.abs(h));
+          context.rect(x, y, side * (w < 0 ? -1 : 1), side * (h < 0 ? -1 : 1)); break;
+        }
+        case "triangle":
+          context.moveTo(x + w / 2, y); context.lineTo(x + w, y + h); context.lineTo(x, y + h); context.closePath(); break;
+        case "oval":
+          context.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2); break;
+        case "pentagon": {
+          let cx = x + w / 2, cy = y + h / 2, r = Math.min(Math.abs(w), Math.abs(h)) / 2;
+          for (let i = 0; i < 5; i++) {
+            let angle = (i * 2 * Math.PI / 5) - Math.PI / 2;
+            context.lineTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+          }
+          context.closePath(); break;
+        }
+        case "curve":
+          context.moveTo(x, y); context.quadraticCurveTo(x + w * 0.25, y + h * 0.85, x + w, y + h); break;
+        case "star": {
+          let cx = x + w / 2, cy = y + h / 2, rot = Math.PI / 2 * 3, step = Math.PI / 4, outer = Math.min(Math.abs(w), Math.abs(h)) / 2, inner = outer * 0.4;
+          for (let i = 0; i < 8; i++) {
+            let currR = (i % 2 === 0) ? outer : inner;
+            context.lineTo(cx + Math.cos(rot) * currR, cy + Math.sin(rot) * currR);
+            rot += step;
+          }
+          context.closePath(); break;
+        }
+        case "arrowUp": {
+          let baseW = Math.abs(w) * 0.35;
+          context.moveTo(x + w / 2 - baseW, y); context.lineTo(x + w / 2 + baseW, y);
+          context.lineTo(x + w / 2 + baseW, y + h * 0.55); context.lineTo(x + w, y + h * 0.55);
+          context.lineTo(x + w / 2, y + h); context.lineTo(x, y + h * 0.55);
+          context.lineTo(x + w / 2 - baseW, y + h * 0.55); context.closePath(); break;
+        }
+        case "arrowDown": {
+          let baseW = Math.abs(w) * 0.35;
+          context.moveTo(x + w / 2, y); context.lineTo(x + w, y + h * 0.45);
+          context.lineTo(x + w / 2 + baseW, y + h * 0.45); context.lineTo(x + w / 2 + baseW, y + h);
+          context.lineTo(x + w / 2 - baseW, y + h); context.lineTo(x + w / 2 - baseW, y + h * 0.45);
+          context.lineTo(x, y + h * 0.45); context.closePath(); break;
+        }
+        case "arrowLeft": {
+          let baseH = Math.abs(h) * 0.35;
+          context.moveTo(x, y + h / 2); context.lineTo(x + w * 0.45, y);
+          context.lineTo(x + w * 0.45, y + h / 2 - baseH); context.lineTo(x + w, y + h / 2 - baseH);
+          context.lineTo(x + w, y + h / 2 + baseH); context.lineTo(x + w * 0.45, y + h / 2 + baseH);
+          context.lineTo(x + w * 0.45, y + h); context.closePath(); break;
+        }
+        case "arrowRight": {
+          let baseH = Math.abs(h) * 0.35;
+          context.moveTo(x, y + h / 2 - baseH); context.lineTo(x + w * 0.55, y + h / 2 - baseH);
+          context.lineTo(x + w * 0.55, y); context.lineTo(x + w, y + h / 2);
+          context.lineTo(x + w * 0.55, y + h); context.lineTo(x + w * 0.55, y + h / 2 + baseH);
+          context.lineTo(x, y + h / 2 + baseH); context.closePath(); break;
+        }
+      }
+      context.stroke();
+      context.restore();
+    }
+
+    // --- Flood Fill Bucket Algorithm ---
+    function paintFill(point) {
+      const color = hexToRgb(state.color);
+      const ratio = window.devicePixelRatio || 1;
+      const startX = Math.floor(point.x * ratio);
+      const startY = Math.floor(point.y * ratio);
+      
+      const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const width = canvas.width;
+      const height = canvas.height;
+      
+      if (startX < 0 || startX >= width || startY < 0 || startY >= height) return;
+      
+      const targetPos = (startY * width + startX) * 4;
+      const targetR = data[targetPos];
+      const targetG = data[targetPos + 1];
+      const targetB = data[targetPos + 2];
+      const targetA = data[targetPos + 3];
+      
+      // Prevent infinite loop if clicking the same color
+      if (targetR === color.r && targetG === color.g && targetB === color.b && targetA === 255) return;
+      
+      // Allow a slight tolerance for anti-aliased shape edges
+      const matchTarget = (pos) => {
+        const dr = data[pos] - targetR;
+        const dg = data[pos + 1] - targetG;
+        const db = data[pos + 2] - targetB;
+        const da = data[pos + 3] - targetA;
+        return (dr * dr + dg * dg + db * db + da * da) < 128;
+      };
+      
+      const setPixel = (pos) => {
+        data[pos] = color.r;
+        data[pos + 1] = color.g;
+        data[pos + 2] = color.b;
+        data[pos + 3] = 255;
+      };
+      
+      // DFS pixel fill
+      const stack = [[startX, startY]];
+      while (stack.length > 0) {
+        let [x, y] = stack.pop();
+        let pos = (y * width + x) * 4;
+        
+        if (!matchTarget(pos)) continue;
+        
+        while (x > 0 && matchTarget(pos - 4)) {
+          x--;
+          pos -= 4;
+        }
+        
+        let spanAbove = false;
+        let spanBelow = false;
+        
+        while (x < width && matchTarget(pos)) {
+          setPixel(pos);
+          
+          if (y > 0) {
+            if (matchTarget(pos - width * 4)) {
+              if (!spanAbove) { stack.push([x, y - 1]); spanAbove = true; }
+            } else { spanAbove = false; }
+          }
+          
+          if (y < height - 1) {
+            if (matchTarget(pos + width * 4)) {
+              if (!spanBelow) { stack.push([x, y + 1]); spanBelow = true; }
+            } else { spanBelow = false; }
+          }
+          
+          x++;
+          pos += 4;
+        }
+      }
+      context.putImageData(imgData, 0, 0);
+    }
+
+    function cycleZoom() {
+      const zoomLevels = [1, 1.5, 2];
+      const currentIndex = zoomLevels.indexOf(state.zoom);
+      state.zoom = zoomLevels[(currentIndex + 1) % zoomLevels.length];
+      canvas.style.transform = `scale(${state.zoom})`;
+      canvas.style.cursor = state.zoom === 2 ? "zoom-out" : "zoom-in";
+    }
+
+    function setTool(tool) {
+      if (state.floatingImage && tool !== 'image') {
+          applyFloatingImage();
+      }
+
+      state.tool = tool;
+      toolButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
+      });
+
+      if (tool === "eraser") {
+        canvas.style.cursor = "cell";
+      } else if (tool === "magnifier") {
+        canvas.style.cursor = state.zoom === 2 ? "zoom-out" : "zoom-in";
+      } else if (tool === "image") {
+        canvas.style.cursor = "default";
+      } else {
+        canvas.style.cursor = "crosshair";
+      }
+    }
+
+    function setColor(color) {
+      state.color = color;
+      swatches.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.color === color));
+      });
+    }
+
+    function setCustomColor(color) {
+      customColorSwatch.dataset.color = color;
+      customColorSwatch.style.background = color;
+      colorInput.value = color;
+      setColor(color);
+    }
+
+    function clearCanvas() {
+      if (state.floatingImage) cancelFloatingImage();
+      saveHistory();
+      context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    }
+
+    function setBackground() {
+      saveHistory();
+      context.save();
+      context.globalCompositeOperation = "source-over";
+      context.fillStyle = state.color;
+      context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      context.restore();
+    }
+
+    function updateSize() {
+      state.size = Number(sizeInput.value);
+      sizeDot.style.setProperty("--dot-size", `${Math.max(6, Math.min(strokeWidth(), 28))}px`);
+    }
+
+    function updateMarkerControls() {
+      state.marker = markerSelect.value;
+      state.markerSize = Number(markerSizeInput.value);
+      state.markerOpacity = Number(markerOpacityInput.value) / 100;
+      state.markerActive = true;
+      state.activeShape = "none";
+      shapeSelect.value = "none";
+      setTool("brush");
+      updateSize();
+    }
+
+    // --- Active Image Logic ---
+    function insertImageToCanvas(src) {
+      const img = new Image();
+      img.crossOrigin = "anonymous"; 
+      img.onload = () => {
+        if (state.floatingImage) applyFloatingImage();
+
+        state.canvasBeforeImage = context.getImageData(0, 0, canvas.width, canvas.height);
+        
+        const logicalW = window.innerWidth;
+        const logicalH = window.innerHeight;
+        const scale = Math.min(1, logicalW / img.width, logicalH / img.height) * 0.6;
+        
+        const w = img.width * scale;
+        const h = img.height * scale;
+        const x = (logicalW - w) / 2;
+        const y = (logicalH - h) / 2;
+
+        state.floatingImage = { img, x, y, w, h };
+        setTool('image');
+
+        document.getElementById('imageSizeControls').style.display = 'flex';
+        document.getElementById('imageActionControls').style.display = 'flex';
+        document.getElementById('imageDividerControls').style.display = 'block';
+
+        updateImageInputs();
+        renderFloatingImage();
+
+        imagesPanel.hidden = false;
+        imagesButton.setAttribute("aria-expanded", "true");
+      };
+      img.onerror = () => {
+        alert("Image failed to load due to browser security settings (CORS). Try saving the image to your computer and uploading it instead.");
+      };
+      img.src = src;
+    }
+
+    function updateImageInputs() {
+       if (!state.floatingImage) return;
+       imgWidthInput.value = Math.round(state.floatingImage.w);
+       imgHeightInput.value = Math.round(state.floatingImage.h);
+    }
+
+    imgWidthInput.addEventListener("input", (e) => {
+      if (!state.floatingImage) return;
+      state.floatingImage.w = Number(e.target.value) || 10;
+      renderFloatingImage();
+    });
+
+    imgHeightInput.addEventListener("input", (e) => {
+      if (!state.floatingImage) return;
+      state.floatingImage.h = Number(e.target.value) || 10;
+      renderFloatingImage();
+    });
+
+    function renderFloatingImage() {
+      if (!state.floatingImage || !state.canvasBeforeImage) return;
+      context.putImageData(state.canvasBeforeImage, 0, 0);
+
+      const { img, x, y, w, h } = state.floatingImage;
+      context.save();
+      context.globalAlpha = 1;
+      context.globalCompositeOperation = 'source-over';
+      context.drawImage(img, x, y, w, h);
+
+      context.strokeStyle = '#0f766e';
+      context.lineWidth = 2;
+      context.setLineDash([6, 6]);
+      context.strokeRect(x, y, w, h);
+      context.setLineDash([]);
+
+      const handleSize = 10;
+      context.fillStyle = '#ffffff';
+      context.strokeStyle = '#0f766e';
+      const handles = [
+        { hx: x - handleSize/2, hy: y - handleSize/2 },
+        { hx: x + w - handleSize/2, hy: y - handleSize/2 },
+        { hx: x - handleSize/2, hy: y + h - handleSize/2 },
+        { hx: x + w - handleSize/2, hy: y + h - handleSize/2 }
+      ];
+
+      handles.forEach(p => {
+         context.fillRect(p.hx, p.hy, handleSize, handleSize);
+         context.strokeRect(p.hx, p.hy, handleSize, handleSize);
+      });
+      context.restore();
+    }
+
+    function getHitHandle(p, imgState) {
+      const { x, y, w, h } = imgState;
+      const s = 14; 
+      const check = (px, py) => Math.abs(p.x - px) < s && Math.abs(p.y - py) < s;
+
+      if (check(x, y)) return 'nw';
+      if (check(x + w, y)) return 'ne';
+      if (check(x, y + h)) return 'sw';
+      if (check(x + w, y + h)) return 'se';
+
+      if (p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) return 'move';
+      return null;
+    }
+
+    function applyFloatingImage() {
+      if (!state.floatingImage || !state.canvasBeforeImage) return;
+      context.putImageData(state.canvasBeforeImage, 0, 0);
+      context.save();
+      context.globalAlpha = 1;
+      context.globalCompositeOperation = 'source-over';
+      context.drawImage(state.floatingImage.img, state.floatingImage.x, state.floatingImage.y, state.floatingImage.w, state.floatingImage.h);
+      context.restore();
+      saveHistory();
+      closeFloatingImage();
+    }
+
+    function cancelFloatingImage() {
+      if (!state.floatingImage || !state.canvasBeforeImage) return;
+      context.putImageData(state.canvasBeforeImage, 0, 0);
+      closeFloatingImage();
+    }
+
+    function closeFloatingImage() {
+      state.floatingImage = null;
+      state.canvasBeforeImage = null;
+      document.getElementById('imageSizeControls').style.display = 'none';
+      document.getElementById('imageActionControls').style.display = 'none';
+      document.getElementById('imageDividerControls').style.display = 'none';
+      if (state.tool === 'image') setTool('brush');
+    }
+
+    applyImageBtn.addEventListener('click', applyFloatingImage);
+    cancelImageBtn.addEventListener('click', cancelFloatingImage);
+
+    imageUploadInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => insertImageToCanvas(event.target.result);
+      reader.readAsDataURL(file);
+      e.target.value = "";
+    });
+
+    loadUrlButton.addEventListener("click", () => {
+      const url = imageUrlInput.value.trim();
+      if (url) {
+        insertImageToCanvas(url);
+        imageUrlInput.value = "";
+      }
+    });
+
+    window.addEventListener('paste', (e) => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (let index in items) {
+        const item = items[index];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const blob = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => insertImageToCanvas(event.target.result);
+          reader.readAsDataURL(blob);
+        }
+      }
+    });
+
+    // --- Main Canvas Painting Events ---
+    canvas.addEventListener("pointerdown", (event) => {
+      const point = pointFromEvent(event);
+
+      if (state.floatingImage) {
+          const action = getHitHandle(point, state.floatingImage);
+          if (action) {
+              setTool('image'); // Ensure correct active tool configuration
+              state.imageDragState = action;
+              state.dragStartPoint = point;
+              state.dragStartImg = { ...state.floatingImage };
+              canvas.setPointerCapture(event.pointerId);
+              return;
+          } else {
+              applyFloatingImage();
+              return;
+          }
+      }
+
+      if (state.tool === "magnifier") { cycleZoom(); return; }
+      
+      if (state.tool === "paint") { 
+          saveHistory(); 
+          paintFill(point); 
+          return; 
+      }
+
+      saveHistory();
+      state.drawing = true;
+      state.startPoint = point;
+      state.lastPoint = point;
+      canvas.setPointerCapture(event.pointerId);
+
+      if (state.tool !== "eraser" && state.activeShape !== "none") {
+        state.draggedBuffer = context.getImageData(0, 0, canvas.width, canvas.height);
+        drawPreviewShape(state.startPoint, point, state.activeShape);
+      } else {
+        drawLine(point, point);
+      }
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      const point = pointFromEvent(event);
+
+      if (!state.drawing && !state.imageDragState) {
+          if (state.floatingImage) {
+              const action = getHitHandle(point, state.floatingImage);
+              if (action === 'move') canvas.style.cursor = 'move';
+              else if (action === 'nw' || action === 'se') canvas.style.cursor = 'nwse-resize';
+              else if (action === 'ne' || action === 'sw') canvas.style.cursor = 'nesw-resize';
+              else canvas.style.cursor = 'default';
+          }
+          return;
+      }
+
+      if (state.imageDragState && state.floatingImage) {
+          const dx = point.x - state.dragStartPoint.x;
+          const dy = point.y - state.dragStartPoint.y;
+          const img = state.floatingImage;
+          const start = state.dragStartImg;
+
+          if (state.imageDragState === 'move') {
+              img.x = start.x + dx; img.y = start.y + dy;
+          } else if (state.imageDragState === 'nw') {
+              img.x = start.x + dx; img.y = start.y + dy; img.w = start.w - dx; img.h = start.h - dy;
+          } else if (state.imageDragState === 'ne') {
+              img.y = start.y + dy; img.w = start.w + dx; img.h = start.h - dy;
+          } else if (state.imageDragState === 'sw') {
+              img.x = start.x + dx; img.w = start.w - dx; img.h = start.h + dy;
+          } else if (state.imageDragState === 'se') {
+              img.w = start.w + dx; img.h = start.h + dy;
+          }
+
+          if (img.w < 10) { img.w = 10; if (state.imageDragState.includes('w')) img.x = start.x + start.w - 10; }
+          if (img.h < 10) { img.h = 10; if (state.imageDragState.includes('n')) img.y = start.y + start.h - 10; }
+
+          updateImageInputs();
+          renderFloatingImage();
+          return;
+      }
+
+      if (!state.drawing || !state.lastPoint) return;
+
+      if (state.tool !== "eraser" && state.activeShape !== "none" && state.draggedBuffer) {
+        context.putImageData(state.draggedBuffer, 0, 0);
+        drawPreviewShape(state.startPoint, point, state.activeShape);
+      } else {
+        drawLine(state.lastPoint, point);
+      }
+      state.lastPoint = point;
+    });
+
+    canvas.addEventListener("pointerup", () => {
+      state.drawing = false; state.lastPoint = null; state.startPoint = null; state.draggedBuffer = null;
+      state.imageDragState = null;
+    });
+
+    canvas.addEventListener("pointercancel", () => {
+      state.drawing = false; state.lastPoint = null; state.startPoint = null; state.draggedBuffer = null;
+      state.imageDragState = null;
+    });
+
+    // --- Panel Interactions ---
+    toolButtons.forEach((button) => {
+      button.addEventListener("click", () => setTool(button.dataset.tool));
+    });
+
+    swatches.forEach((button) => {
+      button.addEventListener("click", () => setColor(button.dataset.color));
+    });
+
+    markersButton.addEventListener("click", () => {
+      const isOpen = !markersPanel.hidden;
+      markersPanel.hidden = isOpen;
+      markersButton.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) {
+        shapesPanel.hidden = true; shapesButton.setAttribute("aria-expanded", "false");
+        imagesPanel.hidden = true; imagesButton.setAttribute("aria-expanded", "false");
+        updateMarkerControls();
+      }
+    });
+
+    shapesButton.addEventListener("click", () => {
+      const isOpen = !shapesPanel.hidden;
+      shapesPanel.hidden = isOpen;
+      shapesButton.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) {
+        markersPanel.hidden = true; markersButton.setAttribute("aria-expanded", "false");
+        imagesPanel.hidden = true; imagesButton.setAttribute("aria-expanded", "false");
+        state.markerActive = false;
+        state.activeShape = shapeSelect.value;
+        setTool("brush");
+      }
+    });
+
+    imagesButton.addEventListener("click", () => {
+      const isOpen = !imagesPanel.hidden;
+      imagesPanel.hidden = isOpen;
+      imagesButton.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) {
+        markersPanel.hidden = true; markersButton.setAttribute("aria-expanded", "false");
+        shapesPanel.hidden = true; shapesButton.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    toolboxButton.addEventListener("click", () => {
+      const isOpen = !toolsPanel.hidden;
+      toolsPanel.hidden = isOpen;
+      toolboxButton.setAttribute("aria-expanded", String(!isOpen));
+    });
+
+    shapeSelect.addEventListener("change", () => {
+      state.activeShape = shapeSelect.value;
+      if (state.activeShape !== "none") state.markerActive = false;
+      setTool("brush");
+    });
+
+    let isDragging = false;
+    let dragStartX = 0; let dragStartY = 0;
+    let panelStartX = 0; let panelStartY = 0;
+
+    toolsPanel.addEventListener("pointerdown", (event) => {
+      if (event.target.closest("button") || event.target.closest("input") || event.target.closest("select")) return;
+      isDragging = true;
+      const rect = toolsPanel.getBoundingClientRect();
+      panelStartX = rect.left; panelStartY = rect.top;
+      dragStartX = event.clientX; dragStartY = event.clientY;
+      toolsPanel.style.bottom = "auto"; toolsPanel.style.right = "auto";
+      toolsPanel.style.left = `${panelStartX}px`; toolsPanel.style.top = `${panelStartY}px`;
+      toolsPanel.setPointerCapture(event.pointerId);
+    });
+
+    toolsPanel.addEventListener("pointermove", (event) => {
+      if (!isDragging) return;
+      toolsPanel.style.left = `${panelStartX + (event.clientX - dragStartX)}px`;
+      toolsPanel.style.top = `${panelStartY + (event.clientY - dragStartY)}px`;
+    });
+
+    const stopDragging = (event) => {
+      if (!isDragging) return;
+      isDragging = false;
+      toolsPanel.releasePointerCapture(event.pointerId);
+    };
+
+    toolsPanel.addEventListener("pointerup", stopDragging);
+    toolsPanel.addEventListener("pointercancel", stopDragging);
+
+    markerSelect.addEventListener("change", updateMarkerControls);
+    markerSizeInput.addEventListener("input", updateMarkerControls);
+    markerOpacityInput.addEventListener("input", updateMarkerControls);
+    
+    // Background button now fills the whole background behind everything 
+    // by rendering standard fill over clear, leaving line paths unaffected, but
+    // since drawings are pixel-based, standard fill rect applies over everything. 
+    // Wait, the prompt specifically said the "Fill" option button inside the toolbox 
+    // should not affect the whole background. The separate "Background" button works as intended.
+    backgroundButton.addEventListener("click", () => {
+        saveHistory();
+        context.save();
+        context.globalCompositeOperation = "destination-over"; // Put background *behind* existing drawing
+        context.fillStyle = state.color;
+        context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+        context.restore();
+    });
+
+    undoButton.addEventListener("click", () => {
+      if (state.floatingImage) { cancelFloatingImage(); return; }
+      const snapshot = state.history.pop();
+      if (snapshot) context.putImageData(snapshot, 0, 0);
+    });
+
+    clearButton.addEventListener("click", () => {
+      if (state.floatingImage) cancelFloatingImage();
+      clearCanvas();
+    });
+    
+    editColorButton.addEventListener("click", () => colorInput.click());
+    songsButton.addEventListener("click", () => window.open("https://gemini.google.com/app", "_blank", "noopener,noreferrer"));
+    colorInput.addEventListener("input", () => setCustomColor(colorInput.value));
+    
+    brushSelect.addEventListener("change", () => {
+      state.brush = brushSelect.value;
+      state.markerActive = false;
+      state.activeShape = "none";
+      shapeSelect.value = "none";
+      setTool("brush");
+      updateSize();
+    });
+    
+    sizeInput.addEventListener("input", updateSize);
+    window.addEventListener("resize", resizeCanvas);
+
+    resizeCanvas();
+    updateSize();
+  </script>
+</body>
+</html>
