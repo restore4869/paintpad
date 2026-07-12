@@ -1,0 +1,2201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paint Pad</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #20242a;
+      --panel: #ffffff;
+      --panel-border: #cfd5dd;
+      --accent: #0f766e;
+      --accent-soft: #d8f3ee;
+      --canvas: #ffffff;
+      --page: #e9edf2;
+      --danger: #c2410c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: var(--page);
+    }
+
+    body {
+      display: grid;
+      place-items: stretch;
+    }
+
+    .app {
+      position: relative;
+      min-width: 320px;
+      min-height: 100%;
+      isolation: isolate;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: crosshair;
+      touch-action: none;
+      transform-origin: 0 0;
+    }
+    
+    #paintCanvas {
+      background: var(--canvas);
+    }
+
+    #imageCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: transparent;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .panel {
+      position: fixed;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgb(38 45 56 / 18%);
+      backdrop-filter: blur(10px);
+    }
+
+    .font-panel {
+      left: 14px;
+      bottom: 14px;
+    }
+
+    .marker-label, .shapes-label, .images-label, .delete-image-label, .slips-label, .pre-exist-label, .toolbox-toggle-btn {
+      position: fixed;
+      z-index: 2;
+      padding: 10px 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      box-shadow: 0 12px 28px rgb(38 45 56 / 14%);
+      backdrop-filter: blur(10px);
+      color: var(--ink);
+      font: 700 14px/1 Arial, Helvetica, sans-serif;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .marker-label { left: 14px; top: 14px; }
+    .shapes-label { left: 104px; top: 14px; }
+    .images-label { left: 194px; top: 14px; }
+    .delete-image-label {
+      left: 284px;
+      top: 14px;
+      color: var(--danger);
+    }
+    .slips-label { left: 394px; top: 14px; }
+    .pre-exist-label { left: 494px; top: 14px; }
+    
+    .toolbox-toggle-btn { right: 14px; top: 14px; }
+
+    .marker-label:hover, .shapes-label:hover, .images-label:hover, .delete-image-label:hover, .slips-label:hover, .pre-exist-label:hover, .toolbox-toggle-btn:hover {
+      border-color: #8ea0b3;
+      background: #eef3f8;
+    }
+
+    .marker-panel, .shapes-panel, .images-panel, .delete-image-panel, .pre-exist-panel {
+      position: fixed;
+      z-index: 3;
+      width: 232px;
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 96%, transparent);
+      box-shadow: 0 14px 30px rgb(38 45 56 / 18%);
+      backdrop-filter: blur(10px);
+    }
+
+    .marker-panel { left: 14px; top: 60px; }
+    .shapes-panel { left: 104px; top: 60px; }
+    .images-panel { left: 194px; top: 60px; }
+    .delete-image-panel { left: 284px; top: 60px; }
+    .pre-exist-panel { left: 494px; top: 60px; }
+
+    .marker-panel[hidden], .shapes-panel[hidden], .images-panel[hidden], .delete-image-panel[hidden], .pre-exist-panel[hidden], .tools-panel[hidden] {
+      display: none !important;
+    }
+
+    /* Note Slip Panel Styles */
+    .note-slip-panel {
+      position: fixed;
+      z-index: 20;
+      left: calc(50% - 150px);
+      top: calc(50% - 150px);
+      width: 300px;
+      height: 300px;
+      background: #fef08a; /* Sticky note yellow */
+      border: 1px solid #facc15;
+      border-radius: 4px;
+      box-shadow: 0 14px 30px rgb(38 45 56 / 25%);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .note-slip-panel[hidden] {
+      display: none !important;
+    }
+
+    .note-slip-header {
+      padding: 8px 12px;
+      background: #fde047;
+      cursor: move;
+      font: 700 14px Arial, sans-serif;
+      color: #854d0e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      border-bottom: 1px solid #facc15;
+    }
+
+    .note-slip-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      font-weight: bold;
+      color: #854d0e;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .note-slip-close:hover {
+      color: #ca8a04;
+    }
+
+    .note-slip-textarea {
+      flex: 1;
+      width: 100%;
+      background: transparent;
+      border: none;
+      resize: none;
+      padding: 12px;
+      font: 400 16px/1.5 Arial, sans-serif;
+      color: #1c1917;
+      outline: none;
+    }
+
+    .marker-field {
+      display: grid;
+      gap: 6px;
+      font: 700 12px/1 Arial, Helvetica, sans-serif;
+    }
+
+    .marker-field select,
+    .marker-field input {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .marker-field select {
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 7px 8px;
+      background: #ffffff;
+      color: var(--ink);
+      font: 600 12px/1 Arial, Helvetica, sans-serif;
+      cursor: pointer;
+    }
+
+    .marker-field input[type="url"], 
+    .marker-field input[type="file"], 
+    .marker-field input[type="number"], 
+    .marker-field input[type="text"] {
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      background: #ffffff;
+      color: var(--ink);
+      font: 400 12px/1 Arial, Helvetica, sans-serif;
+    }
+
+    .engine-links {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 4px;
+    }
+    
+    .engine-links a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 11px;
+    }
+    
+    .engine-links a:hover {
+      text-decoration: underline;
+    }
+
+    .tools-panel {
+      position: fixed;
+      right: 14px;
+      top: 60px;
+      z-index: 4;
+      flex-direction: column;
+      align-items: stretch;
+      max-width: min(340px, calc(100vw - 28px));
+      cursor: move;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .tools-panel-header {
+      font: 700 11px Arial, sans-serif;
+      color: #717f91;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      pointer-events: none;
+      text-align: center;
+      border-bottom: 1px dashed var(--panel-border);
+      padding-bottom: 6px;
+    }
+
+    .tools-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-start;
+    }
+
+    .tool-button,
+    .chip {
+      width: 42px;
+      height: 42px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: #f8fafc;
+      color: var(--ink);
+      font: 700 18px/1 Arial, Helvetica, sans-serif;
+      cursor: pointer;
+    }
+
+    .tool-button.named {
+      width: auto;
+      min-width: 68px;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+
+    .tool-button.wide {
+      width: auto;
+      min-width: 104px;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+
+    .color-picker {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .tool-button:hover,
+    .chip:hover,
+    .swatch:hover {
+      border-color: #8ea0b3;
+      background: #eef3f8;
+    }
+
+    .tool-button[aria-pressed="true"],
+    .chip[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: #064e49;
+    }
+
+    .tool-button.danger {
+      color: var(--danger);
+      border-color: #fca5a5;
+      background: #fef2f2;
+    }
+    
+    .tool-button.danger:hover {
+      background: #fee2e2;
+      border-color: #f87171;
+    }
+
+    .swatch {
+      width: 32px;
+      height: 32px;
+      border: 2px solid #ffffff;
+      outline: 1px solid var(--panel-border);
+      border-radius: 50%;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .swatch[aria-pressed="true"] {
+      outline: 3px solid var(--accent);
+    }
+
+    .custom-color {
+      position: relative;
+    }
+
+    .custom-color::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      bottom: -2px;
+      width: 10px;
+      height: 10px;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .size-control {
+      width: 116px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 4px;
+    }
+
+    .brush-control {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: #f8fafc;
+      font: 700 13px/1 Arial, Helvetica, sans-serif;
+    }
+
+    .brush-control select {
+      max-width: 148px;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      background: #ffffff;
+      color: var(--ink);
+      font: 600 12px/1 Arial, Helvetica, sans-serif;
+      cursor: pointer;
+    }
+
+    .size-control input {
+      width: 78px;
+      accent-color: var(--accent);
+    }
+
+    .size-dot {
+      width: var(--dot-size);
+      height: var(--dot-size);
+      min-width: var(--dot-size);
+      border-radius: 50%;
+      background: var(--ink);
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 720px) {
+      .panel {
+        padding: 8px;
+      }
+
+      .font-panel {
+        left: 10px;
+        bottom: 10px;
+      }
+
+      .marker-label, .shapes-label, .images-label, .delete-image-label, .slips-label, .pre-exist-label, .toolbox-toggle-btn {
+        padding: 9px 12px;
+        font-size: 13px;
+      }
+      .marker-label { left: 10px; top: 10px; }
+      .shapes-label { left: 96px; top: 10px; }
+      .images-label { left: 180px; top: 10px; }
+      .delete-image-label { left: 264px; top: 10px; }
+      .toolbox-toggle-btn { right: 10px; top: 10px; }
+      
+      .slips-label { left: 10px; top: 56px; } 
+      .pre-exist-label { left: 102px; top: 56px; } 
+
+      .marker-panel, .shapes-panel, .images-panel, .delete-image-panel, .pre-exist-panel {
+        top: 100px;
+        width: min(232px, calc(100vw - 20px));
+      }
+
+      .marker-panel { left: 10px; }
+      .shapes-panel { left: 96px; }
+      .images-panel { left: 10px; }
+      .delete-image-panel { left: 10px; } 
+      .pre-exist-panel { left: 10px; }
+
+      .tools-panel {
+        max-width: 280px;
+      }
+
+      .tool-button,
+      .chip {
+        width: 38px;
+        height: 38px;
+      }
+
+      .tool-button.named {
+        min-width: 62px;
+        padding: 0 9px;
+        font-size: 12px;
+      }
+
+      .tool-button.wide {
+        min-width: 96px;
+        padding: 0 9px;
+        font-size: 12px;
+      }
+
+      .size-control {
+        width: 108px;
+      }
+
+      .size-control input {
+        width: 70px;
+      }
+
+      .brush-control {
+        width: 100%;
+        height: 38px;
+        justify-content: space-between;
+      }
+
+      .brush-control select {
+        max-width: 146px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="Paint drawing app">
+    <canvas id="paintCanvas" aria-label="Drawing canvas"></canvas>
+    <canvas id="imageCanvas" aria-label="Image and Shape layer"></canvas>
+
+    <button id="markersButton" class="marker-label" type="button" aria-expanded="false" aria-controls="markersPanel">Markers</button>
+    <section id="markersPanel" class="marker-panel" aria-label="Marker options" hidden>
+      <label class="marker-field">
+        <span>Marker</span>
+        <select id="markerSelect">
+          <option value="calligraphy">Calligraphy pen</option>
+          <option value="crayon">Crayon</option>
+          <option value="pencil">Pencil</option>
+        </select>
+      </label>
+      <label class="marker-field">
+        <span>Size</span>
+        <input id="markerSizeInput" type="range" min="2" max="48" value="14">
+      </label>
+      <label class="marker-field">
+        <span>Opacity</span>
+        <input id="markerOpacityInput" type="range" min="10" max="100" value="85">
+      </label>
+    </section>
+
+    <button id="shapesButton" class="shapes-label" type="button" aria-expanded="false" aria-controls="shapesPanel">Shapes</button>
+    <section id="shapesPanel" class="shapes-panel" aria-label="Shape options" hidden>
+      <p style="font-size: 10.5px; color: #717f91; margin: 0 0 6px 0; line-height: 1.3;">
+        <strong>Tip:</strong> Drag to create a shape. Click <b>Fill</b> or <b>Paint</b> in the toolbox to automatically flatten it so you can color it in!
+      </p>
+      <label class="marker-field">
+        <span>Active Shape</span>
+        <select id="shapeSelect">
+          <option value="none">-- Draw Freehand --</option>
+          <option value="rectangle">Rectangle</option>
+          <option value="square">Square</option>
+          <option value="triangle">Triangle</option>
+          <option value="oval">Oval</option>
+          <option value="pentagon">Pentagon</option>
+          <option value="hexagon">Hexagon</option>
+          <option value="curve">Curve</option>
+          <option value="star">Four-point Star</option>
+          <option value="star5">Five-point Star</option>
+          <option value="cloud">Cloud Callout</option>
+          <option value="arrowUp">Down Arrow</option>
+          <option value="arrowDown">Up Arrow</option>
+          <option value="arrowLeft">Left Arrow</option>
+          <option value="arrowRight">Right Arrow</option>
+        </select>
+      </label>
+    </section>
+
+    <button id="imagesButton" class="images-label" type="button" aria-expanded="false" aria-controls="imagesPanel">Images</button>
+    
+    <section id="imagesPanel" class="images-panel" aria-label="Image options" hidden>
+      <div id="imageSizeControls" style="display: none; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+        <label class="marker-field" style="flex: 1; min-width: 60px;">
+          <span>Width (px)</span>
+          <input id="imgWidthInput" type="number" min="10" max="4000">
+        </label>
+        <label class="marker-field" style="flex: 1; min-width: 60px;">
+          <span>Height (px)</span>
+          <input id="imgHeightInput" type="number" min="10" max="4000">
+        </label>
+        <label class="marker-field" style="flex: 1; min-width: 60px;">
+          <span>Rotate (°)</span>
+          <input id="imgRotationInput" type="number" value="0">
+        </label>
+      </div>
+
+      <div id="imageRotateControls" style="display: none; gap: 8px; margin-bottom: 8px;">
+         <button id="rotateCCWBtn" class="tool-button wide" style="flex:1; height:32px; font-size:12px;" title="Rotate Counter-Clockwise">↺ -90°</button>
+         <button id="rotateCWBtn" class="tool-button wide" style="flex:1; height:32px; font-size:12px;" title="Rotate Clockwise">↻ +90°</button>
+      </div>
+
+      <div id="imageDividerControls" style="display: none; margin: 6px 0; border-top: 1px dashed var(--panel-border);"></div>
+
+      <label class="marker-field">
+        <span>Upload Local Image</span>
+        <input id="imageUploadInput" type="file" accept="image/*">
+      </label>
+      
+      <div style="margin: 6px 0; border-top: 1px dashed var(--panel-border);"></div>
+      
+      <label class="marker-field" title="Note: Some sites block direct URL rendering. If it fails, save the image first!">
+        <span>Paste Web URL</span>
+        <input id="imageUrlInput" type="url" placeholder="https://example.com/img.jpg">
+        <button id="loadUrlButton" class="tool-button wide" style="height: 32px; font-size: 12px; margin-top: 4px; min-width: 100%;">Load URL</button>
+      </label>
+
+      <div style="margin: 6px 0; border-top: 1px dashed var(--panel-border);"></div>
+      
+      <div class="marker-field" style="text-align: center;">
+        <span>Find Web Images</span>
+        <div class="engine-links">
+          <a href="https://images.google.com" target="_blank">Google</a> |
+          <a href="https://www.bing.com/images" target="_blank">Bing</a> |
+          <a href="https://images.search.yahoo.com" target="_blank">Yahoo</a>
+        </div>
+        <p style="font-size: 10.5px; color: #717f91; margin: 6px 0 0 0; line-height: 1.3;">
+          <strong>Tip:</strong> Copy any image online, then click here and press <b>Ctrl+V</b> to instantly paste it!
+        </p>
+      </div>
+    </section>
+
+    <button id="deleteImageMainBtn" class="delete-image-label" type="button" aria-expanded="false" aria-controls="deleteImagePanel">Delete Item ▾</button>
+    <section id="deleteImagePanel" class="delete-image-panel" aria-label="Delete options" hidden>
+      <button id="deleteActiveBtn" class="tool-button wide danger" style="width: 100%; height: 36px; font-size: 12px;" title="Removes the currently active floating item">Delete Active Item</button>
+      <div style="margin: 4px 0; border-top: 1px dashed var(--panel-border);"></div>
+      <button id="deleteAllBtn" class="tool-button wide" style="width: 100%; height: 36px; font-size: 12px;">Delete All Items</button>
+    </section>
+
+    <button id="slipsButton" class="slips-label" type="button" aria-expanded="false" aria-controls="noteSlipPanel">Note Slip</button>
+    <div id="noteSlipPanel" class="note-slip-panel" aria-label="Note Slip Pad" hidden>
+      <div class="note-slip-header" id="noteSlipHeader">
+        Note Slip
+        <button class="note-slip-close" id="noteSlipClose" title="Close Notes">&times;</button>
+      </div>
+      <textarea class="note-slip-textarea" placeholder="Type your notes here..." aria-label="Notepad space"></textarea>
+    </div>
+
+    <button id="preExistMainBtn" class="pre-exist-label" type="button" aria-expanded="false" aria-controls="preExistPanel">Pre-Exist Drawings</button>
+    <section id="preExistPanel" class="pre-exist-panel" aria-label="Pre-Exist Drawings" hidden>
+      <button id="saveAsPatternBtn" class="tool-button wide" style="width: 100%; height: 36px; font-size: 12px;" title="Saves your current drawing as a reusable tile">Save Drawing to Pre-Exists</button>
+      <button id="clearPreExistsBtn" class="tool-button wide danger" style="width: 100%; height: 36px; font-size: 12px; margin-top: 4px;">Delete All Pre-Exists</button>
+      <div style="margin: 4px 0; border-top: 1px dashed var(--panel-border);"></div>
+      <span style="font-size: 12px; font-weight: bold; color: var(--ink);">Saved Pre-Exists</span>
+      <div id="patternGallery" style="display: flex; gap: 8px; flex-wrap: wrap; max-height: 120px; overflow-y: auto; padding-top: 4px;">
+         </div>
+    </section>
+    
+    <button id="toolboxButton" class="toolbox-toggle-btn" type="button" aria-expanded="true" aria-controls="toolsPanel">Toolbox</button>
+    <section id="toolsPanel" class="panel tools-panel" aria-label="Drawing tools">
+      <div class="tools-panel-header">Drag Toolbox</div>
+      <div class="tools-grid">
+        
+        <button class="tool-button named" type="button" data-tool="brush" aria-pressed="true" title="Paint">Paint</button>
+        <button class="tool-button named" type="button" data-tool="paint" aria-pressed="false" title="Fill">Fill</button>
+        <button class="tool-button named" type="button" data-tool="eraser" aria-pressed="false" title="Erase">Erase</button>
+        <button class="tool-button named" type="button" data-tool="magnifier" aria-pressed="false" title="Zoom">Zoom</button>
+        <button id="undoButton" class="tool-button named" type="button" title="Undo">Undo</button>
+        <button id="clearButton" class="tool-button danger" type="button" title="Clear canvas">X</button>
+
+        <button class="swatch" type="button" data-color="#20242a" aria-pressed="true" title="Black" style="background:#20242a"></button>
+        <button class="swatch" type="button" data-color="#dc2626" aria-pressed="false" title="Red" style="background:#dc2626"></button>
+        <button class="swatch" type="button" data-color="#2563eb" aria-pressed="false" title="Blue" style="background:#2563eb"></button>
+        <button class="swatch" type="button" data-color="#16a34a" aria-pressed="false" title="Green" style="background:#16a34a"></button>
+        <button class="swatch" type="button" data-color="#facc15" aria-pressed="false" title="Yellow" style="background:#facc15"></button>
+        <button class="swatch" type="button" data-color="#c0c0c0" aria-pressed="false" title="Silver" style="background:#c0c0c0"></button>
+        <button class="swatch" type="button" data-color="#8b4513" aria-pressed="false" title="Brown" style="background:#8b4513"></button>
+        <button class="swatch" type="button" data-color="#d4af37" aria-pressed="false" title="Gold" style="background:#d4af37"></button>
+        <button class="swatch" type="button" data-color="#f97316" aria-pressed="false" title="Orange" style="background:#f97316"></button>
+        <button class="swatch" type="button" data-color="#ec4899" aria-pressed="false" title="Pink" style="background:#ec4899"></button>
+        <button id="customColorSwatch" class="swatch custom-color" type="button" data-color="#8b5cf6" aria-pressed="false" title="Custom color" style="background:#8b5cf6"></button>
+        <button id="editColorButton" class="tool-button wide" type="button" title="Color options">Color Options</button>
+        <button id="songsButton" class="tool-button wide" type="button" title="2G songs with Google Gemini music">2G</button>
+        <input id="colorInput" class="color-picker" type="color" value="#8b5cf6" aria-label="Edit color">
+
+        <label class="brush-control" title="Brushes">
+          <span>Brushes</span>
+          <select id="brushSelect" aria-label="Brushes">
+            <option value="airbrush">Airbrush</option>
+            <option value="watercolor">Watercolor brush</option>
+            <option value="oil">Oil brush</option>
+          </select>
+        </label>
+
+        <label class="size-control" title="Brush size">
+          <span class="sr-only">Brush size</span>
+          <span id="sizeDot" class="size-dot" style="--dot-size: 10px"></span>
+          <input id="sizeInput" type="range" min="2" max="42" value="10">
+        </label>
+      </div>
+    </section>
+    
+    <section class="panel font-panel" aria-label="Lower controls">
+      <button id="saveQuickBtn" class="chip tool-button wide" type="button" title="Save instantly (Ctrl+S)">Save</button>
+    </section>
+
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#paintCanvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    
+    const imageCanvas = document.querySelector("#imageCanvas");
+    const imageContext = imageCanvas.getContext("2d");
+
+    const toolButtons = [...document.querySelectorAll("[data-tool]")];
+    const swatches = [...document.querySelectorAll("[data-color]")];
+    
+    const markersButton = document.querySelector("#markersButton");
+    const markersPanel = document.querySelector("#markersPanel");
+    const shapesButton = document.querySelector("#shapesButton");
+    const shapesPanel = document.querySelector("#shapesPanel");
+    const imagesButton = document.querySelector("#imagesButton");
+    const imagesPanel = document.querySelector("#imagesPanel");
+    const toolboxButton = document.querySelector("#toolboxButton");
+    const toolsPanel = document.querySelector("#toolsPanel");
+    
+    const deleteImageMainBtn = document.querySelector("#deleteImageMainBtn");
+    const deleteImagePanel = document.querySelector("#deleteImagePanel");
+    const deleteActiveBtn = document.querySelector("#deleteActiveBtn");
+    const deleteAllBtn = document.querySelector("#deleteAllBtn");
+    
+    const slipsButton = document.querySelector("#slipsButton");
+    const noteSlipPanel = document.querySelector("#noteSlipPanel");
+    const noteSlipHeader = document.querySelector("#noteSlipHeader");
+    const noteSlipClose = document.querySelector("#noteSlipClose");
+
+    const preExistMainBtn = document.querySelector("#preExistMainBtn");
+    const preExistPanel = document.querySelector("#preExistPanel");
+    const saveAsPatternBtn = document.querySelector("#saveAsPatternBtn");
+    const clearPreExistsBtn = document.querySelector("#clearPreExistsBtn");
+    const patternGallery = document.querySelector("#patternGallery");
+
+    const saveQuickBtn = document.querySelector("#saveQuickBtn");
+
+    const markerSelect = document.querySelector("#markerSelect");
+    const markerSizeInput = document.querySelector("#markerSizeInput");
+    const markerOpacityInput = document.querySelector("#markerOpacityInput");
+    const shapeSelect = document.querySelector("#shapeSelect");
+    
+    const imageUploadInput = document.querySelector("#imageUploadInput");
+    const imageUrlInput = document.querySelector("#imageUrlInput");
+    const loadUrlButton = document.querySelector("#loadUrlButton");
+    const imgWidthInput = document.querySelector("#imgWidthInput");
+    const imgHeightInput = document.querySelector("#imgHeightInput");
+    const imgRotationInput = document.querySelector("#imgRotationInput");
+    const rotateCCWBtn = document.querySelector("#rotateCCWBtn");
+    const rotateCWBtn = document.querySelector("#rotateCWBtn");
+    
+    const undoButton = document.querySelector("#undoButton");
+    const clearButton = document.querySelector("#clearButton");
+    const editColorButton = document.querySelector("#editColorButton");
+    const songsButton = document.querySelector("#songsButton");
+    const colorInput = document.querySelector("#colorInput");
+    const customColorSwatch = document.querySelector("#customColorSwatch");
+    const brushSelect = document.querySelector("#brushSelect");
+    const sizeInput = document.querySelector("#sizeInput");
+    const sizeDot = document.querySelector("#sizeDot");
+
+    const state = {
+      tool: "brush",
+      color: "#20242a",
+      brush: brushSelect.value,
+      marker: markerSelect.value,
+      markerSize: Number(markerSizeInput.value),
+      markerOpacity: Number(markerOpacityInput.value) / 100,
+      markerActive: false,
+      activeShape: "none",
+      size: Number(sizeInput.value),
+      zoom: 1,
+      drawing: false,
+      creatingShape: false,
+      startPoint: null,
+      lastPoint: null,
+      history: [],
+
+      // Multi-Floating Object State
+      floatingImages: [],
+      activeImage: null,
+      imageDragState: null,
+      dragStartPoint: null,
+      dragStartImg: null,
+
+      // File System Saving State
+      currentFileHandle: null,
+      fallbackFileName: "My_Drawing.png"
+    };
+
+    function resizeCanvas() {
+      const snapshot = canvas.width && canvas.height
+        ? context.getImageData(0, 0, canvas.width, canvas.height)
+        : null;
+      const ratio = window.devicePixelRatio || 1;
+      
+      canvas.width = Math.floor(window.innerWidth * ratio);
+      canvas.height = Math.floor(window.innerHeight * ratio);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+
+      imageCanvas.width = canvas.width;
+      imageCanvas.height = canvas.height;
+      imageCanvas.style.width = canvas.style.width;
+      imageCanvas.style.height = canvas.style.height;
+
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      imageContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+      if (snapshot) {
+        const restored = document.createElement("canvas");
+        restored.width = snapshot.width;
+        restored.height = snapshot.height;
+        restored.getContext("2d").putImageData(snapshot, 0, 0);
+        context.drawImage(restored, 0, 0, snapshot.width / ratio, snapshot.height / ratio);
+      }
+      
+      renderFloatingImages();
+    }
+
+    function saveHistory() {
+      state.history.push(context.getImageData(0, 0, canvas.width, canvas.height));
+      if (state.history.length > 20) {
+        state.history.shift();
+      }
+    }
+
+    function pointFromEvent(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) / state.zoom,
+        y: (event.clientY - rect.top) / state.zoom
+      };
+    }
+
+    function strokeWidth() {
+      if (state.markerActive) {
+        if (state.marker === "calligraphy") return state.markerSize * 1.25;
+        return state.markerSize;
+      }
+      if (state.brush === "oil") return state.size * 1.6;
+      if (state.brush === "watercolor") return state.size * 1.35;
+      return state.size;
+    }
+
+    function effectiveOpacity() {
+      return state.markerActive ? state.markerOpacity : 1;
+    }
+
+    function hexToRgb(hex) {
+      const normalized = hex.replace("#", "");
+      return {
+        r: parseInt(normalized.slice(0, 2), 16),
+        g: parseInt(normalized.slice(2, 4), 16),
+        b: parseInt(normalized.slice(4, 6), 16)
+      };
+    }
+
+    function drawAirbrush(point) {
+      const color = hexToRgb(state.color);
+      const radius = strokeWidth() * 1.4;
+      const dots = Math.max(12, Math.floor(radius * 3));
+      context.save();
+      context.globalCompositeOperation = "source-over";
+      context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.18)`;
+
+      for (let index = 0; index < dots; index += 1) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * radius;
+        context.beginPath();
+        context.arc(
+          point.x + Math.cos(angle) * distance,
+          point.y + Math.sin(angle) * distance,
+          Math.max(1, state.size / 9),
+          0,
+          Math.PI * 2
+        );
+        context.fill();
+      }
+      context.restore();
+    }
+
+    function drawAirbrushLine(from, to) {
+      const distance = Math.hypot(to.x - from.x, to.y - from.y);
+      const steps = Math.max(1, Math.ceil(distance / 5));
+
+      for (let step = 0; step <= steps; step += 1) {
+        const amount = step / steps;
+        drawAirbrush({
+          x: from.x + (to.x - from.x) * amount,
+          y: from.y + (to.y - from.y) * amount
+        });
+      }
+    }
+
+    function drawLine(from, to) {
+      if (state.tool !== "eraser" && state.markerActive) {
+        drawMarkerLine(from, to);
+        return;
+      }
+      if (state.tool !== "eraser" && state.brush === "airbrush") {
+        drawAirbrushLine(from, to);
+        return;
+      }
+
+      const color = hexToRgb(state.color);
+      context.save();
+      context.globalCompositeOperation = state.tool === "eraser" ? "destination-out" : "source-over";
+      context.globalAlpha = state.tool === "eraser" ? 1 : effectiveOpacity();
+      context.strokeStyle = state.color;
+      context.lineWidth = strokeWidth();
+      context.lineCap = "round";
+      context.lineJoin = "round";
+
+      if (state.tool !== "eraser" && state.brush === "watercolor") {
+        context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.38)`;
+      }
+
+      if (state.tool !== "eraser" && state.brush === "oil") {
+        context.shadowColor = `rgba(${color.r}, ${color.g}, ${color.b}, 0.28)`;
+        context.shadowBlur = Math.max(2, state.size / 3);
+      }
+
+      context.beginPath();
+      context.moveTo(from.x, from.y);
+      context.lineTo(to.x, to.y);
+      context.stroke();
+
+      if (state.tool !== "eraser" && state.brush === "oil") {
+        context.lineWidth = Math.max(1, strokeWidth() * 0.45);
+        context.strokeStyle = "rgba(255, 255, 255, 0.18)";
+        context.beginPath();
+        context.moveTo(from.x - 1, from.y - 1);
+        context.lineTo(to.x - 1, to.y - 1);
+        context.stroke();
+      }
+      context.restore();
+    }
+
+    function drawMarkerLine(from, to) {
+      const color = hexToRgb(state.color);
+      context.save();
+      context.globalCompositeOperation = "source-over";
+      context.globalAlpha = state.markerOpacity;
+      context.strokeStyle = state.color;
+      context.lineCap = state.marker === "pencil" ? "butt" : "round";
+      context.lineJoin = "round";
+
+      if (state.marker === "calligraphy") {
+        context.lineWidth = strokeWidth();
+        context.beginPath();
+        context.moveTo(from.x - 3, from.y + 2);
+        context.lineTo(to.x - 3, to.y + 2);
+        context.stroke();
+        context.lineWidth = Math.max(1, state.markerSize * 0.34);
+        context.beginPath();
+        context.moveTo(from.x + 4, from.y - 3);
+        context.lineTo(to.x + 4, to.y - 3);
+        context.stroke();
+      } else if (state.marker === "crayon") {
+        context.lineWidth = strokeWidth();
+        context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${state.markerOpacity})`;
+        context.beginPath();
+        context.moveTo(from.x, from.y);
+        context.lineTo(to.x, to.y);
+        context.stroke();
+
+        for (let index = 0; index < 8; index += 1) {
+          const offset = (Math.random() - 0.5) * state.markerSize;
+          context.globalAlpha = state.markerOpacity * 0.38;
+          context.lineWidth = Math.max(1, state.markerSize * 0.12);
+          context.beginPath();
+          context.moveTo(from.x + offset, from.y - offset);
+          context.lineTo(to.x + offset, to.y - offset);
+          context.stroke();
+        }
+      } else {
+        context.lineWidth = Math.max(1, strokeWidth() * 0.45);
+        context.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${state.markerOpacity})`;
+        context.beginPath();
+        context.moveTo(from.x, from.y);
+        context.lineTo(to.x, to.y);
+        context.stroke();
+      }
+      context.restore();
+    }
+
+    function drawShapePath(ctx, x, y, w, h, shapeType) {
+      ctx.beginPath();
+      switch (shapeType) {
+        case "rectangle": 
+        case "square": 
+          ctx.rect(x, y, w, h); 
+          break;
+        case "triangle":
+          ctx.moveTo(x + w / 2, y); 
+          ctx.lineTo(x + w, y + h); 
+          ctx.lineTo(x, y + h); 
+          ctx.closePath(); 
+          break;
+        case "oval":
+          ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2); 
+          break;
+        case "pentagon": {
+          let cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) / 2;
+          for (let i = 0; i < 5; i++) {
+            let angle = (i * 2 * Math.PI / 5) - Math.PI / 2;
+            ctx.lineTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+          }
+          ctx.closePath(); 
+          break;
+        }
+        case "hexagon": {
+          let cx = x + w / 2, cy = y + h / 2;
+          let rx = w / 2, ry = h / 2;
+          let rot = -Math.PI / 2;
+          let step = Math.PI / 3;
+          for (let i = 0; i < 6; i++) {
+            ctx.lineTo(cx + Math.cos(rot) * rx, cy + Math.sin(rot) * ry);
+            rot += step;
+          }
+          ctx.closePath(); 
+          break;
+        }
+        case "curve":
+          ctx.moveTo(x, y); 
+          ctx.quadraticCurveTo(x + w * 0.25, y + h * 0.85, x + w, y + h); 
+          break;
+        case "star": {
+          let cx = x + w / 2, cy = y + h / 2, rot = Math.PI / 2 * 3, step = Math.PI / 4;
+          let outer = Math.min(w, h) / 2, inner = outer * 0.4;
+          for (let i = 0; i < 8; i++) {
+            let currR = (i % 2 === 0) ? outer : inner;
+            ctx.lineTo(cx + Math.cos(rot) * currR, cy + Math.sin(rot) * currR);
+            rot += step;
+          }
+          ctx.closePath(); 
+          break;
+        }
+        case "star5": {
+          let cx = x + w / 2, cy = y + h / 2;
+          let rx = w / 2, ry = h / 2;
+          let rot = -Math.PI / 2;
+          let step = Math.PI / 5;
+          for (let i = 0; i < 10; i++) {
+            let currRX = (i % 2 === 0) ? rx : rx * 0.382;
+            let currRY = (i % 2 === 0) ? ry : ry * 0.382;
+            ctx.lineTo(cx + Math.cos(rot) * currRX, cy + Math.sin(rot) * currRY);
+            rot += step;
+          }
+          ctx.closePath(); 
+          break;
+        }
+        case "cloud": {
+          ctx.moveTo(x + w * 0.2, y + h * 0.3);
+          ctx.bezierCurveTo(x, y + h * 0.3, x, y + h * 0.6, x + w * 0.15, y + h * 0.7);
+          ctx.bezierCurveTo(x + w * 0.15, y + h * 0.9, x + w * 0.4, y + h * 0.9, x + w * 0.5, y + h * 0.8);
+          ctx.lineTo(x + w * 0.6, y + h); 
+          ctx.lineTo(x + w * 0.7, y + h * 0.8);
+          ctx.bezierCurveTo(x + w * 0.9, y + h * 0.8, x + w, y + h * 0.6, x + w * 0.9, y + h * 0.4);
+          ctx.bezierCurveTo(x + w * 0.95, y + h * 0.1, x + w * 0.6, y + h * 0.05, x + w * 0.55, y + h * 0.2);
+          ctx.bezierCurveTo(x + w * 0.4, y - h * 0.05, x + w * 0.15, y + h * 0.05, x + w * 0.2, y + h * 0.3);
+          ctx.closePath();
+          break;
+        }
+        case "arrowUp": {
+          let baseW = w * 0.35;
+          ctx.moveTo(x + w / 2 - baseW, y + h * 0.55); 
+          ctx.lineTo(x + w / 2 - baseW, y + h);
+          ctx.lineTo(x + w / 2 + baseW, y + h); 
+          ctx.lineTo(x + w / 2 + baseW, y + h * 0.55);
+          ctx.lineTo(x + w, y + h * 0.55); 
+          ctx.lineTo(x + w / 2, y); 
+          ctx.lineTo(x, y + h * 0.55);
+          ctx.closePath(); 
+          break;
+        }
+        case "arrowDown": {
+          let baseW = w * 0.35;
+          ctx.moveTo(x + w / 2 - baseW, y); 
+          ctx.lineTo(x + w / 2 - baseW, y + h * 0.45);
+          ctx.lineTo(x, y + h * 0.45); 
+          ctx.lineTo(x + w / 2, y + h);
+          ctx.lineTo(x + w, y + h * 0.45); 
+          ctx.lineTo(x + w / 2 + baseW, y + h * 0.45);
+          ctx.lineTo(x + w / 2 + baseW, y);
+          ctx.closePath(); 
+          break;
+        }
+        case "arrowLeft": {
+          let baseH = h * 0.35;
+          ctx.moveTo(x + w * 0.45, y + h / 2 - baseH); 
+          ctx.lineTo(x + w, y + h / 2 - baseH);
+          ctx.lineTo(x + w, y + h / 2 + baseH); 
+          ctx.lineTo(x + w * 0.45, y + h / 2 + baseH);
+          ctx.lineTo(x + w * 0.45, y + h); 
+          ctx.lineTo(x, y + h / 2);
+          ctx.lineTo(x + w * 0.45, y);
+          ctx.closePath(); 
+          break;
+        }
+        case "arrowRight": {
+          let baseH = h * 0.35;
+          ctx.moveTo(x, y + h / 2 - baseH); 
+          ctx.lineTo(x + w * 0.55, y + h / 2 - baseH);
+          ctx.lineTo(x + w * 0.55, y); 
+          ctx.lineTo(x + w, y + h / 2);
+          ctx.lineTo(x + w * 0.55, y + h); 
+          ctx.lineTo(x + w * 0.55, y + h / 2 + baseH);
+          ctx.lineTo(x, y + h / 2 + baseH);
+          ctx.closePath(); 
+          break;
+        }
+      }
+    }
+
+    function paintFill(point) {
+      const color = hexToRgb(state.color);
+      const ratio = window.devicePixelRatio || 1;
+      const startX = Math.floor(point.x * ratio);
+      const startY = Math.floor(point.y * ratio);
+      
+      const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const width = canvas.width;
+      const height = canvas.height;
+      
+      if (startX < 0 || startX >= width || startY < 0 || startY >= height) return;
+      
+      const targetPos = (startY * width + startX) * 4;
+      const targetR = data[targetPos];
+      const targetG = data[targetPos + 1];
+      const targetB = data[targetPos + 2];
+      const targetA = data[targetPos + 3];
+      
+      if (targetR === color.r && targetG === color.g && targetB === color.b && targetA === 255) return;
+      
+      const matchTarget = (pos) => {
+        const dr = data[pos] - targetR;
+        const dg = data[pos + 1] - targetG;
+        const db = data[pos + 2] - targetB;
+        const da = data[pos + 3] - targetA;
+        return (dr * dr + dg * dg + db * db + da * da) < 128;
+      };
+      
+      const setPixel = (pos) => {
+        data[pos] = color.r;
+        data[pos + 1] = color.g;
+        data[pos + 2] = color.b;
+        data[pos + 3] = 255;
+      };
+      
+      const stack = [[startX, startY]];
+      while (stack.length > 0) {
+        let [x, y] = stack.pop();
+        let pos = (y * width + x) * 4;
+        
+        if (!matchTarget(pos)) continue;
+        
+        while (x > 0 && matchTarget(pos - 4)) {
+          x--;
+          pos -= 4;
+        }
+        
+        let spanAbove = false;
+        let spanBelow = false;
+        
+        while (x < width && matchTarget(pos)) {
+          setPixel(pos);
+          
+          if (y > 0) {
+            if (matchTarget(pos - width * 4)) {
+              if (!spanAbove) { stack.push([x, y - 1]); spanAbove = true; }
+            } else { spanAbove = false; }
+          }
+          
+          if (y < height - 1) {
+            if (matchTarget(pos + width * 4)) {
+              if (!spanBelow) { stack.push([x, y + 1]); spanBelow = true; }
+            } else { spanBelow = false; }
+          }
+          
+          x++;
+          pos += 4;
+        }
+      }
+      context.putImageData(imgData, 0, 0);
+    }
+
+    function cycleZoom() {
+      const zoomLevels = [1, 1.5, 2];
+      const currentIndex = zoomLevels.indexOf(state.zoom);
+      state.zoom = zoomLevels[(currentIndex + 1) % zoomLevels.length];
+      
+      canvas.style.transform = `scale(${state.zoom})`;
+      imageCanvas.style.transform = `scale(${state.zoom})`;
+      canvas.style.cursor = state.zoom === 2 ? "zoom-out" : "zoom-in";
+    }
+
+    function bakeFloatingObjects() {
+      if (state.floatingImages.length === 0) return;
+      
+      saveHistory();
+
+      state.floatingImages.forEach(img => {
+        const cx = img.x + img.w / 2;
+        const cy = img.y + img.h / 2;
+        const rad = (img.angle || 0) * Math.PI / 180;
+
+        context.save();
+        context.globalAlpha = img.opacity !== undefined ? img.opacity : 1;
+        context.globalCompositeOperation = 'source-over';
+        
+        context.translate(cx, cy);
+        context.rotate(rad);
+
+        if (img.type === 'shape') {
+          context.strokeStyle = img.color;
+          context.lineWidth = img.lineWidth;
+          context.lineCap = "round";
+          context.lineJoin = "round";
+          drawShapePath(context, -img.w / 2, -img.h / 2, img.w, img.h, img.shapeType);
+          context.stroke();
+        } else {
+          context.drawImage(img.img, -img.w / 2, -img.h / 2, img.w, img.h);
+        }
+        context.restore();
+      });
+
+      state.floatingImages = [];
+      state.activeImage = null;
+      
+      document.getElementById('imageSizeControls').style.display = 'none';
+      document.getElementById('imageRotateControls').style.display = 'none';
+      document.getElementById('imageDividerControls').style.display = 'none';
+
+      updateImageInputs();
+      renderFloatingImages();
+    }
+
+    function setTool(tool) {
+      if (tool !== "image") {
+        bakeFloatingObjects();
+      }
+
+      state.tool = tool;
+      toolButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
+      });
+
+      if (tool === "eraser") {
+        canvas.style.cursor = "cell";
+      } else if (tool === "magnifier") {
+        canvas.style.cursor = state.zoom === 2 ? "zoom-out" : "zoom-in";
+      } else if (tool === "image") {
+        canvas.style.cursor = "default";
+      } else {
+        canvas.style.cursor = "crosshair";
+      }
+    }
+
+    function setColor(color) {
+      state.color = color;
+      swatches.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.color === color));
+      });
+    }
+
+    function setCustomColor(color) {
+      customColorSwatch.dataset.color = color;
+      customColorSwatch.style.background = color;
+      colorInput.value = color;
+      setColor(color);
+    }
+
+    function clearCanvas() {
+      saveHistory();
+      context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    }
+
+    function updateSize() {
+      state.size = Number(sizeInput.value);
+      sizeDot.style.setProperty("--dot-size", `${Math.max(6, Math.min(strokeWidth(), 28))}px`);
+    }
+
+    function updateMarkerControls() {
+      state.marker = markerSelect.value;
+      state.markerSize = Number(markerSizeInput.value);
+      state.markerOpacity = Number(markerOpacityInput.value) / 100;
+      state.markerActive = true;
+      state.activeShape = "none";
+      shapeSelect.value = "none";
+      setTool("brush");
+      updateSize();
+    }
+
+    function insertImageToCanvas(src) {
+      const img = new Image();
+      img.crossOrigin = "anonymous"; 
+      img.onload = () => {
+        const logicalW = window.innerWidth;
+        const logicalH = window.innerHeight;
+        const scale = Math.min(1, logicalW / img.width, logicalH / img.height) * 0.6;
+        
+        const w = img.width * scale;
+        const h = img.height * scale;
+        const x = (logicalW - w) / 2;
+        const y = (logicalH - h) / 2;
+
+        const newImg = { type: 'image', img, x, y, w, h, angle: 0, id: Date.now() };
+        state.floatingImages.push(newImg);
+        state.activeImage = newImg;
+        
+        setTool('image');
+        
+        document.getElementById('imageSizeControls').style.display = 'flex';
+        document.getElementById('imageRotateControls').style.display = 'flex';
+        document.getElementById('imageDividerControls').style.display = 'block';
+
+        updateImageInputs();
+        renderFloatingImages();
+
+        imagesPanel.hidden = false;
+        imagesButton.setAttribute("aria-expanded", "true");
+        deleteImagePanel.hidden = true;
+        deleteImageMainBtn.setAttribute("aria-expanded", "false");
+      };
+      img.src = src;
+    }
+
+    function updateImageInputs() {
+       if (!state.activeImage) {
+           imgWidthInput.value = "";
+           imgHeightInput.value = "";
+           imgRotationInput.value = "";
+           return;
+       }
+       imgWidthInput.value = Math.round(state.activeImage.w);
+       imgHeightInput.value = Math.round(state.activeImage.h);
+       imgRotationInput.value = Math.round(state.activeImage.angle || 0);
+    }
+
+    imgWidthInput.addEventListener("input", (e) => {
+      if (!state.activeImage) return;
+      state.activeImage.w = Number(e.target.value) || 10;
+      renderFloatingImages();
+    });
+
+    imgHeightInput.addEventListener("input", (e) => {
+      if (!state.activeImage) return;
+      state.activeImage.h = Number(e.target.value) || 10;
+      renderFloatingImages();
+    });
+
+    imgRotationInput.addEventListener("input", (e) => {
+      if (!state.activeImage) return;
+      state.activeImage.angle = Number(e.target.value) || 0;
+      renderFloatingImages();
+    });
+
+    rotateCCWBtn.addEventListener('click', () => {
+      if (!state.activeImage) return;
+      state.activeImage.angle = (state.activeImage.angle - 90) % 360;
+      updateImageInputs();
+      renderFloatingImages();
+    });
+
+    rotateCWBtn.addEventListener('click', () => {
+      if (!state.activeImage) return;
+      state.activeImage.angle = (state.activeImage.angle + 90) % 360;
+      updateImageInputs();
+      renderFloatingImages();
+    });
+
+    function renderFloatingImages() {
+      imageContext.clearRect(0, 0, imageCanvas.width / (window.devicePixelRatio || 1), imageCanvas.height / (window.devicePixelRatio || 1));
+
+      state.floatingImages.forEach(img => {
+          const cx = img.x + img.w / 2;
+          const cy = img.y + img.h / 2;
+          const rad = (img.angle || 0) * Math.PI / 180;
+
+          imageContext.save();
+          imageContext.globalAlpha = img.opacity !== undefined ? img.opacity : 1;
+          imageContext.globalCompositeOperation = 'source-over';
+          
+          imageContext.translate(cx, cy);
+          imageContext.rotate(rad);
+
+          if (img.type === 'shape') {
+              imageContext.strokeStyle = img.color;
+              imageContext.lineWidth = img.lineWidth;
+              imageContext.lineCap = "round";
+              imageContext.lineJoin = "round";
+              drawShapePath(imageContext, -img.w / 2, -img.h / 2, img.w, img.h, img.shapeType);
+              imageContext.stroke();
+          } else {
+              imageContext.drawImage(img.img, -img.w / 2, -img.h / 2, img.w, img.h);
+          }
+
+          if (img === state.activeImage) {
+              imageContext.strokeStyle = '#0f766e';
+              imageContext.lineWidth = 2;
+              imageContext.setLineDash([6, 6]);
+              imageContext.strokeRect(-img.w / 2, -img.h / 2, img.w, img.h);
+              imageContext.setLineDash([]);
+
+              const handleSize = 10;
+              imageContext.fillStyle = '#ffffff';
+              imageContext.strokeStyle = '#0f766e';
+              const handles = [
+                { hx: -img.w / 2 - handleSize/2, hy: -img.h / 2 - handleSize/2 },
+                { hx: img.w / 2 - handleSize/2, hy: -img.h / 2 - handleSize/2 },
+                { hx: -img.w / 2 - handleSize/2, hy: img.h / 2 - handleSize/2 },
+                { hx: img.w / 2 - handleSize/2, hy: img.h / 2 - handleSize/2 }
+              ];
+
+              handles.forEach(p => {
+                 imageContext.fillRect(p.hx, p.hy, handleSize, handleSize);
+                 imageContext.strokeRect(p.hx, p.hy, handleSize, handleSize);
+              });
+              
+              imageContext.beginPath();
+              imageContext.moveTo(0, -img.h / 2);
+              imageContext.lineTo(0, -img.h / 2 - 20);
+              imageContext.stroke();
+              
+              imageContext.beginPath();
+              imageContext.arc(0, -img.h / 2 - 24, 6, 0, Math.PI * 2);
+              imageContext.fill();
+              imageContext.stroke();
+          }
+
+          imageContext.restore();
+      });
+    }
+
+    function getHitAction(p, imgState) {
+      const { x, y, w, h, angle = 0 } = imgState;
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const rad = angle * Math.PI / 180;
+
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const lx = cx + (dx * Math.cos(-rad) - dy * Math.sin(-rad));
+      const ly = cy + (dx * Math.sin(-rad) + dy * Math.cos(-rad));
+
+      const s = 14; 
+      const check = (px, py) => Math.abs(lx - px) < s && Math.abs(ly - py) < s;
+
+      if (check(x, y)) return 'nw';
+      if (check(x + w, y)) return 'ne';
+      if (check(x, y + h)) return 'sw';
+      if (check(x + w, y + h)) return 'se';
+      if (check(cx, y - 24)) return 'rotate';
+      if (lx >= x && lx <= x + w && ly >= y && ly <= y + h) return 'move';
+      return null;
+    }
+
+    imageUploadInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => insertImageToCanvas(event.target.result);
+      reader.readAsDataURL(file);
+      e.target.value = "";
+    });
+
+    loadUrlButton.addEventListener("click", () => {
+      const url = imageUrlInput.value.trim();
+      if (url) {
+        insertImageToCanvas(url);
+        imageUrlInput.value = "";
+      }
+    });
+
+    window.addEventListener('paste', (e) => {
+      if (e.target.closest('.note-slip-panel')) return; // Ignore if typing in Notepad
+      if (e.target.closest('.save-panel')) return; // Ignore if typing in Save Panel
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (let index in items) {
+        const item = items[index];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const blob = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => insertImageToCanvas(event.target.result);
+          reader.readAsDataURL(blob);
+        }
+      }
+    });
+
+    canvas.addEventListener("pointerdown", (event) => {
+      const point = pointFromEvent(event);
+
+      if (state.activeShape !== "none") {
+          const newShape = {
+              type: 'shape',
+              shapeType: state.activeShape,
+              color: state.color,
+              lineWidth: strokeWidth(),
+              opacity: effectiveOpacity(),
+              x: point.x,
+              y: point.y,
+              w: 0,
+              h: 0,
+              angle: 0,
+              id: Date.now()
+          };
+          state.floatingImages.push(newShape);
+          state.activeImage = newShape;
+          state.creatingShape = true;
+          state.startPoint = point;
+          canvas.setPointerCapture(event.pointerId);
+          
+          document.getElementById('imageSizeControls').style.display = 'flex';
+          document.getElementById('imageRotateControls').style.display = 'flex';
+          document.getElementById('imageDividerControls').style.display = 'block';
+          return;
+      }
+
+      if (state.floatingImages.length > 0) {
+          if (state.activeImage) {
+              const action = getHitAction(point, state.activeImage);
+              if (action) {
+                  setTool('image');
+                  state.imageDragState = action;
+                  state.dragStartPoint = point;
+                  state.dragStartImg = { ...state.activeImage };
+                  canvas.setPointerCapture(event.pointerId);
+                  return;
+              }
+          }
+          
+          for (let i = state.floatingImages.length - 1; i >= 0; i--) {
+              const img = state.floatingImages[i];
+              const action = getHitAction(point, img);
+              if (action) {
+                  state.activeImage = img;
+                  state.floatingImages.splice(i, 1);
+                  state.floatingImages.push(img); 
+                  
+                  setTool('image');
+                  state.imageDragState = action;
+                  state.dragStartPoint = point;
+                  state.dragStartImg = { ...img };
+                  updateImageInputs();
+                  renderFloatingImages();
+                  canvas.setPointerCapture(event.pointerId);
+                  return;
+              }
+          }
+
+          if (state.activeImage) {
+              state.activeImage = null;
+              updateImageInputs();
+              renderFloatingImages();
+          }
+
+          if (state.tool === 'image') return;
+      }
+
+      if (state.tool === "magnifier") { cycleZoom(); return; }
+      if (state.tool === "paint") { saveHistory(); paintFill(point); return; }
+
+      saveHistory();
+      state.drawing = true;
+      state.startPoint = point;
+      state.lastPoint = point;
+      canvas.setPointerCapture(event.pointerId);
+
+      drawLine(point, point);
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      const point = pointFromEvent(event);
+
+      if (state.creatingShape && state.activeImage) {
+          const img = state.activeImage;
+          let rx = Math.min(state.startPoint.x, point.x);
+          let ry = Math.min(state.startPoint.y, point.y);
+          let rw = Math.abs(point.x - state.startPoint.x);
+          let rh = Math.abs(point.y - state.startPoint.y);
+
+          if (img.shapeType === "square") {
+              const side = Math.max(rw, rh);
+              rw = side; rh = side;
+              rx = state.startPoint.x < point.x ? state.startPoint.x : state.startPoint.x - side;
+              ry = state.startPoint.y < point.y ? state.startPoint.y : state.startPoint.y - side;
+          }
+
+          img.x = rx; img.y = ry; img.w = rw; img.h = rh;
+          updateImageInputs();
+          renderFloatingImages();
+          return;
+      }
+
+      if (!state.drawing && !state.imageDragState) {
+          if (state.floatingImages.length > 0 && state.activeShape === "none") {
+              let action = null;
+              if (state.activeImage) action = getHitAction(point, state.activeImage);
+              
+              if (action) {
+                  if (action === 'move') canvas.style.cursor = 'move';
+                  else if (action === 'rotate') canvas.style.cursor = 'grab';
+                  else if (action === 'nw' || action === 'se') canvas.style.cursor = 'nwse-resize';
+                  else if (action === 'ne' || action === 'sw') canvas.style.cursor = 'nesw-resize';
+              } else {
+                  let hoveredOther = false;
+                  for (let i = state.floatingImages.length - 1; i >= 0; i--) {
+                      if (getHitAction(point, state.floatingImages[i])) { hoveredOther = true; break; }
+                  }
+                  if (hoveredOther) {
+                      canvas.style.cursor = 'pointer';
+                  } else {
+                      if (state.tool === 'eraser') canvas.style.cursor = 'cell';
+                      else if (state.tool === 'magnifier') canvas.style.cursor = state.zoom === 2 ? 'zoom-out' : 'zoom-in';
+                      else if (state.tool === 'image') canvas.style.cursor = 'default';
+                      else canvas.style.cursor = 'crosshair';
+                  }
+              }
+          }
+          return;
+      }
+
+      if (state.imageDragState && state.activeImage) {
+          const img = state.activeImage;
+          const start = state.dragStartImg;
+          const dx = point.x - state.dragStartPoint.x;
+          const dy = point.y - state.dragStartPoint.y;
+
+          if (state.imageDragState === 'rotate') {
+              const cx = start.x + start.w / 2;
+              const cy = start.y + start.h / 2;
+              const ang = Math.atan2(point.y - cy, point.x - cx) * 180 / Math.PI;
+              img.angle = ang + 90; 
+              if (imgRotationInput) imgRotationInput.value = Math.round(img.angle);
+          } 
+          else if (state.imageDragState === 'move') {
+              img.x = start.x + dx; img.y = start.y + dy;
+          } 
+          else {
+              const rad = (start.angle || 0) * Math.PI / 180;
+              const ldx = dx * Math.cos(-rad) - dy * Math.sin(-rad);
+              const ldy = dx * Math.sin(-rad) + dy * Math.cos(-rad);
+
+              if (state.imageDragState === 'nw') {
+                  img.x = start.x + ldx; img.y = start.y + ldy; 
+                  img.w = start.w - ldx; img.h = start.h - ldy;
+              } else if (state.imageDragState === 'ne') {
+                  img.y = start.y + ldy; 
+                  img.w = start.w + ldx; img.h = start.h - ldy;
+              } else if (state.imageDragState === 'sw') {
+                  img.x = start.x + ldx; 
+                  img.w = start.w - ldx; img.h = start.h + ldy;
+              } else if (state.imageDragState === 'se') {
+                  img.w = start.w + ldx; img.h = start.h + ldy;
+              }
+
+              if (img.w < 10) { img.w = 10; if (state.imageDragState.includes('w')) img.x = start.x + start.w - 10; }
+              if (img.h < 10) { img.h = 10; if (state.imageDragState.includes('n')) img.y = start.y + start.h - 10; }
+          }
+
+          updateImageInputs();
+          renderFloatingImages();
+          return;
+      }
+
+      if (!state.drawing || !state.lastPoint) return;
+      drawLine(state.lastPoint, point);
+      state.lastPoint = point;
+    });
+
+    const finishPointerEvent = () => {
+      if (state.creatingShape) {
+          state.creatingShape = false;
+          if (state.activeImage && (state.activeImage.w < 5 || state.activeImage.h < 5)) {
+              state.floatingImages = state.floatingImages.filter(img => img !== state.activeImage);
+              state.activeImage = null;
+          } else {
+              setTool('image');
+              imagesPanel.hidden = false;
+              imagesButton.setAttribute("aria-expanded", "true");
+              shapesPanel.hidden = true;
+              shapesButton.setAttribute("aria-expanded", "false");
+              state.activeShape = "none";
+              shapeSelect.value = "none";
+          }
+          renderFloatingImages();
+      }
+      
+      state.drawing = false; 
+      state.lastPoint = null; 
+      state.startPoint = null;
+      state.imageDragState = null;
+    };
+
+    canvas.addEventListener("pointerup", finishPointerEvent);
+    canvas.addEventListener("pointercancel", finishPointerEvent);
+
+    toolButtons.forEach((button) => {
+      button.addEventListener("click", () => setTool(button.dataset.tool));
+    });
+
+    swatches.forEach((button) => {
+      button.addEventListener("click", () => setColor(button.dataset.color));
+    });
+
+    markersButton.addEventListener("click", () => {
+      const isOpen = !markersPanel.hidden;
+      markersPanel.hidden = isOpen;
+      markersButton.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) {
+        shapesPanel.hidden = true; shapesButton.setAttribute("aria-expanded", "false");
+        imagesPanel.hidden = true; imagesButton.setAttribute("aria-expanded", "false");
+        deleteImagePanel.hidden = true; deleteImageMainBtn.setAttribute("aria-expanded", "false");
+        preExistPanel.hidden = true; preExistMainBtn.setAttribute("aria-expanded", "false");
+        updateMarkerControls();
+      }
+    });
+
+    shapesButton.addEventListener("click", () => {
+      const isOpen = !shapesPanel.hidden;
+      shapesPanel.hidden = isOpen;
+      shapesButton.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) {
+        markersPanel.hidden = true; markersButton.setAttribute("aria-expanded", "false");
+        imagesPanel.hidden = true; imagesButton.setAttribute("aria-expanded", "false");
+        deleteImagePanel.hidden = true; deleteImageMainBtn.setAttribute("aria-expanded", "false");
+        preExistPanel.hidden = true; preExistMainBtn.setAttribute("aria-expanded", "false");
+        state.markerActive = false;
+        state.activeShape = shapeSelect.value;
+        setTool("brush");
+      }
+    });
+
+    imagesButton.addEventListener("click", () => {
+      const isOpen = !imagesPanel.hidden;
+      imagesPanel.hidden = isOpen;
+      imagesButton.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) {
+        markersPanel.hidden = true; markersButton.setAttribute("aria-expanded", "false");
+        shapesPanel.hidden = true; shapesButton.setAttribute("aria-expanded", "false");
+        deleteImagePanel.hidden = true; deleteImageMainBtn.setAttribute("aria-expanded", "false");
+        preExistPanel.hidden = true; preExistMainBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    deleteImageMainBtn.addEventListener("click", () => {
+      const isOpen = !deleteImagePanel.hidden;
+      deleteImagePanel.hidden = isOpen;
+      deleteImageMainBtn.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) {
+        markersPanel.hidden = true; markersButton.setAttribute("aria-expanded", "false");
+        shapesPanel.hidden = true; shapesButton.setAttribute("aria-expanded", "false");
+        imagesPanel.hidden = true; imagesButton.setAttribute("aria-expanded", "false");
+        preExistPanel.hidden = true; preExistMainBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+
+    // --- PRE-EXIST DRAWINGS ENGINE ---
+
+    // Exclusively isolates the base Paint Canvas (ignoring floating Shapes/Images)
+    function extractDrawingImage(ctx, canvasEl) {
+        const ratio = window.devicePixelRatio || 1;
+        const width = canvasEl.width;
+        const height = canvasEl.height;
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const data = imgData.data;
+        
+        let minX = width, minY = height, maxX = 0, maxY = 0;
+        let hasContent = false;
+        
+        const bgR = data[0], bgG = data[1], bgB = data[2];
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const i = (y * width + x) * 4;
+                const r = data[i], g = data[i+1], b = data[i+2];
+                // Difference check from background color
+                if (Math.abs(r - bgR) > 15 || Math.abs(g - bgG) > 15 || Math.abs(b - bgB) > 15) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                    hasContent = true;
+                }
+            }
+        }
+        
+        if (!hasContent) return null; // Canvas is empty or just uniform background
+        
+        // Give it a tiny bit of padding before we cut it out
+        const padding = Math.floor(10 * ratio);
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(width, maxX + padding);
+        maxY = Math.min(height, maxY + padding);
+        
+        const cropW = maxX - minX;
+        const cropH = maxY - minY;
+        if (cropW <= 0 || cropH <= 0) return null;
+        
+        const cropImgData = ctx.getImageData(minX, minY, cropW, cropH);
+        const cData = cropImgData.data;
+        
+        // Punch out the background so it's perfectly transparent for tiling
+        for (let i = 0; i < cData.length; i += 4) {
+            const r = cData[i], g = cData[i+1], b = cData[i+2];
+            if (Math.abs(r - bgR) <= 15 && Math.abs(g - bgG) <= 15 && Math.abs(b - bgB) <= 15) {
+                cData[i+3] = 0; 
+            }
+        }
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = cropW;
+        tempCanvas.height = cropH;
+        tempCanvas.getContext('2d').putImageData(cropImgData, 0, 0);
+        return tempCanvas.toDataURL('image/png');
+    }
+
+    preExistMainBtn.addEventListener("click", () => {
+      const isOpen = !preExistPanel.hidden;
+      preExistPanel.hidden = isOpen;
+      preExistMainBtn.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) {
+        markersPanel.hidden = true; markersButton.setAttribute("aria-expanded", "false");
+        shapesPanel.hidden = true; shapesButton.setAttribute("aria-expanded", "false");
+        imagesPanel.hidden = true; imagesButton.setAttribute("aria-expanded", "false");
+        deleteImagePanel.hidden = true; deleteImageMainBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    saveAsPatternBtn.addEventListener("click", () => {
+      const dataUrl = extractDrawingImage(context, canvas);
+      if (!dataUrl) {
+          alert("Nothing uniquely drawn on the canvas yet to save!");
+          return;
+      }
+      
+      const wrapper = document.createElement("div");
+      wrapper.style.position = "relative";
+      wrapper.style.display = "inline-block";
+
+      const img = new Image();
+      img.src = dataUrl;
+      img.style.width = "40px";
+      img.style.height = "40px";
+      img.style.objectFit = "contain";
+      img.style.border = "1px solid var(--panel-border)";
+      img.style.borderRadius = "4px";
+      img.style.cursor = "pointer";
+      img.style.background = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 2 2\"><rect width=\"1\" height=\"1\" fill=\"%23ddd\"/><rect x=\"1\" y=\"1\" width=\"1\" height=\"1\" fill=\"%23ddd\"/></svg>')";
+      img.style.backgroundSize = "10px 10px";
+      img.title = "Click to Fill Canvas (Tile)";
+      
+      // Keep pattern fill on image click
+      img.addEventListener("click", () => {
+         saveHistory();
+         const pat = context.createPattern(img, 'repeat');
+         context.save();
+         context.setTransform(1, 0, 0, 1, 0, 0);
+         context.fillStyle = pat;
+         context.fillRect(0, 0, canvas.width, canvas.height);
+         context.restore();
+      });
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.innerHTML = "&times;";
+      deleteBtn.title = "Delete this drawing";
+      deleteBtn.style.position = "absolute";
+      deleteBtn.style.top = "-6px";
+      deleteBtn.style.right = "-6px";
+      deleteBtn.style.width = "16px";
+      deleteBtn.style.height = "16px";
+      deleteBtn.style.borderRadius = "50%";
+      deleteBtn.style.background = "var(--danger)";
+      deleteBtn.style.color = "white";
+      deleteBtn.style.border = "none";
+      deleteBtn.style.fontSize = "12px";
+      deleteBtn.style.lineHeight = "1";
+      deleteBtn.style.cursor = "pointer";
+      deleteBtn.style.display = "grid";
+      deleteBtn.style.placeItems = "center";
+      deleteBtn.style.padding = "0";
+
+      // Individual deletion functionality
+      deleteBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          wrapper.remove();
+      });
+
+      wrapper.appendChild(img);
+      wrapper.appendChild(deleteBtn);
+      patternGallery.appendChild(wrapper);
+    });
+
+    // Delete All Pre-Exists Functionality
+    clearPreExistsBtn.addEventListener("click", () => {
+       patternGallery.innerHTML = '';
+    });
+    // --- END PRE-EXIST DRAWINGS ENGINE ---
+
+
+    // --- FILE SYSTEM ACCESS & SAVE LOGIC ---
+    function getCombinedCanvas() {
+      // 1. Temporarily clear active selection so bounding boxes/handles don't appear in the final save
+      const tempActive = state.activeImage;
+      state.activeImage = null;
+      renderFloatingImages();
+
+      // 2. Create the off-screen combined canvas
+      const combined = document.createElement('canvas');
+      combined.width = canvas.width;
+      combined.height = canvas.height;
+      const ctx = combined.getContext('2d');
+      
+      // 3. Fill with the background color (or white by default)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, combined.width, combined.height);
+      
+      // 4. Draw the base drawing canvas
+      ctx.drawImage(canvas, 0, 0);
+      
+      // 5. Draw the floating shapes & images canvas over it
+      ctx.drawImage(imageCanvas, 0, 0);
+      
+      // 6. Restore the active selection state
+      state.activeImage = tempActive;
+      renderFloatingImages();
+      
+      return combined;
+    }
+
+    async function executeSave(fileHandle) {
+      try {
+        const ext = fileHandle.name.split('.').pop().toLowerCase();
+        let blob;
+        
+        if (ext === 'pdf') {
+          if (window.jspdf) {
+            const { jsPDF } = window.jspdf;
+            const w = canvas.width;
+            const h = canvas.height;
+            const doc = new jsPDF({ orientation: w > h ? 'l' : 'p', unit: 'px', format: [w, h] });
+            const imgData = getCombinedCanvas().toDataURL('image/jpeg', 0.95);
+            doc.addImage(imgData, 'JPEG', 0, 0, w, h);
+            blob = doc.output('blob');
+          } else {
+            alert("PDF library not loaded.");
+            return false;
+          }
+        } else if (ext === 'jpg' || ext === 'jpeg') {
+          blob = await new Promise(resolve => getCombinedCanvas().toBlob(resolve, 'image/jpeg', 0.95));
+        } else {
+          blob = await new Promise(resolve => getCombinedCanvas().toBlob(resolve, 'image/png'));
+        }
+
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return true;
+      } catch (err) {
+        console.error("Save failed:", err);
+        return false;
+      }
+    }
+
+    function fallbackDownload(fileName) {
+      const ext = fileName.split('.').pop().toLowerCase();
+      let dataUrl;
+      
+      if (ext === 'pdf' && window.jspdf) {
+        const { jsPDF } = window.jspdf;
+        const w = canvas.width;
+        const h = canvas.height;
+        const doc = new jsPDF({ orientation: w > h ? 'l' : 'p', unit: 'px', format: [w, h] });
+        const imgData = getCombinedCanvas().toDataURL('image/jpeg', 0.95);
+        doc.addImage(imgData, 'JPEG', 0, 0, w, h);
+        doc.save(fileName);
+        return;
+      } else if (ext === 'jpg' || ext === 'jpeg') {
+        dataUrl = getCombinedCanvas().toDataURL('image/jpeg', 0.95);
+      } else {
+        dataUrl = getCombinedCanvas().toDataURL('image/png');
+      }
+      
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    async function handleSaveAs() {
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: state.fallbackFileName,
+            excludeAcceptAllOption: true,
+            types: [
+              { description: 'PNG Image', accept: { 'image/png': ['.png'] } },
+              { description: 'JPEG Image', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } },
+              { description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } },
+            ],
+          });
+          state.currentFileHandle = handle;
+          state.fallbackFileName = handle.name; 
+          
+          const success = await executeSave(handle);
+          if (success) flashSaveButton();
+        } catch (err) {
+          if (err.name !== 'AbortError') console.error(err);
+        }
+      } else {
+        // Fallback for browsers without File System Access API
+        let fileName = prompt("Enter file name (include extension .png, .jpg, or .pdf):", state.fallbackFileName);
+        if (!fileName) return;
+        state.fallbackFileName = fileName;
+        fallbackDownload(fileName);
+      }
+    }
+
+    async function handleSaveQuick() {
+      if ('showSaveFilePicker' in window) {
+        if (state.currentFileHandle) {
+          const success = await executeSave(state.currentFileHandle);
+          if (success) flashSaveButton();
+        } else {
+          handleSaveAs();
+        }
+      } else {
+        // Fallback: simply download using the most recent or default name
+        fallbackDownload(state.fallbackFileName);
+        flashSaveButton();
+      }
+    }
+
+    function flashSaveButton() {
+      const originalText = saveQuickBtn.textContent;
+      saveQuickBtn.textContent = "Saved!";
+      saveQuickBtn.style.color = "#0f766e";
+      saveQuickBtn.style.borderColor = "#0f766e";
+      setTimeout(() => {
+        saveQuickBtn.textContent = originalText;
+        saveQuickBtn.style.color = "";
+        saveQuickBtn.style.borderColor = "";
+      }, 1500);
+    }
+
+    saveQuickBtn.addEventListener("click", handleSaveQuick);
+
+    // Keyboard shortcut to quick save
+    window.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault(); // Prevent standard browser save HTML dialog
+        handleSaveQuick();
+      }
+    });
+    // --- END FILE SYSTEM LOGIC ---
+
+
+    // Note Slip Logic
+    let isDraggingSlip = false;
+    let slipStartX = 0; let slipStartY = 0;
+    let slipMouseStartX = 0; let slipMouseStartY = 0;
+
+    noteSlipHeader.addEventListener('pointerdown', (e) => {
+      if (e.target === noteSlipClose) return;
+      isDraggingSlip = true;
+      const rect = noteSlipPanel.getBoundingClientRect();
+      slipStartX = rect.left;
+      slipStartY = rect.top;
+      slipMouseStartX = e.clientX;
+      slipMouseStartY = e.clientY;
+      noteSlipHeader.setPointerCapture(e.pointerId);
+    });
+
+    noteSlipHeader.addEventListener('pointermove', (e) => {
+      if (!isDraggingSlip) return;
+      noteSlipPanel.style.left = `${slipStartX + (e.clientX - slipMouseStartX)}px`;
+      noteSlipPanel.style.top = `${slipStartY + (e.clientY - slipMouseStartY)}px`;
+    });
+
+    const stopDraggingSlip = (e) => {
+      if (!isDraggingSlip) return;
+      isDraggingSlip = false;
+      noteSlipHeader.releasePointerCapture(e.pointerId);
+    };
+
+    noteSlipHeader.addEventListener('pointerup', stopDraggingSlip);
+    noteSlipHeader.addEventListener('pointercancel', stopDraggingSlip);
+
+    slipsButton.addEventListener('click', () => {
+      const isHidden = noteSlipPanel.hidden;
+      noteSlipPanel.hidden = !isHidden;
+      slipsButton.setAttribute("aria-expanded", String(isHidden));
+    });
+
+    noteSlipClose.addEventListener('click', () => {
+      noteSlipPanel.hidden = true;
+      slipsButton.setAttribute("aria-expanded", "false");
+    });
+
+    deleteActiveBtn.addEventListener("click", () => {
+      if (state.activeImage) {
+        state.floatingImages = state.floatingImages.filter(img => img !== state.activeImage);
+        state.activeImage = state.floatingImages.length > 0 ? state.floatingImages[state.floatingImages.length - 1] : null;
+        updateImageInputs();
+        renderFloatingImages();
+      } else {
+        alert("Please click an object on the canvas to select it before deleting.");
+      }
+      deleteImagePanel.hidden = true;
+      deleteImageMainBtn.setAttribute("aria-expanded", "false");
+    });
+
+    deleteAllBtn.addEventListener("click", () => {
+      state.floatingImages = [];
+      state.activeImage = null;
+      updateImageInputs();
+      renderFloatingImages();
+      deleteImagePanel.hidden = true;
+      deleteImageMainBtn.setAttribute("aria-expanded", "false");
+    });
+
+    toolboxButton.addEventListener("click", () => {
+      const isOpen = !toolsPanel.hidden;
+      toolsPanel.hidden = isOpen;
+      toolboxButton.setAttribute("aria-expanded", String(!isOpen));
+    });
+
+    shapeSelect.addEventListener("change", () => {
+      state.activeShape = shapeSelect.value;
+      if (state.activeShape !== "none") state.markerActive = false;
+      setTool("brush");
+    });
+
+    let isDragging = false;
+    let dragStartX = 0; let dragStartY = 0;
+    let panelStartX = 0; let panelStartY = 0;
+
+    toolsPanel.addEventListener("pointerdown", (event) => {
+      if (event.target.closest("button") || event.target.closest("input") || event.target.closest("select")) return;
+      isDragging = true;
+      const rect = toolsPanel.getBoundingClientRect();
+      panelStartX = rect.left; panelStartY = rect.top;
+      dragStartX = event.clientX; dragStartY = event.clientY;
+      toolsPanel.style.bottom = "auto"; toolsPanel.style.right = "auto";
+      toolsPanel.style.left = `${panelStartX}px`; toolsPanel.style.top = `${panelStartY}px`;
+      toolsPanel.setPointerCapture(event.pointerId);
+    });
+
+    toolsPanel.addEventListener("pointermove", (event) => {
+      if (!isDragging) return;
+      toolsPanel.style.left = `${panelStartX + (event.clientX - dragStartX)}px`;
+      toolsPanel.style.top = `${panelStartY + (event.clientY - dragStartY)}px`;
+    });
+
+    const stopDragging = (event) => {
+      if (!isDragging) return;
+      isDragging = false;
+      toolsPanel.releasePointerCapture(event.pointerId);
+    };
+
+    toolsPanel.addEventListener("pointerup", stopDragging);
+    toolsPanel.addEventListener("pointercancel", stopDragging);
+
+    markerSelect.addEventListener("change", updateMarkerControls);
+    markerSizeInput.addEventListener("input", updateMarkerControls);
+    markerOpacityInput.addEventListener("input", updateMarkerControls);
+
+    undoButton.addEventListener("click", () => {
+      const snapshot = state.history.pop();
+      if (snapshot) context.putImageData(snapshot, 0, 0);
+    });
+
+    clearButton.addEventListener("click", () => {
+      clearCanvas();
+    });
+    
+    editColorButton.addEventListener("click", () => colorInput.click());
+    songsButton.addEventListener("click", () => window.open("https://gemini.google.com/app", "_blank", "noopener,noreferrer"));
+    colorInput.addEventListener("input", () => setCustomColor(colorInput.value));
+    
+    brushSelect.addEventListener("change", () => {
+      state.brush = brushSelect.value;
+      state.markerActive = false;
+      state.activeShape = "none";
+      shapeSelect.value = "none";
+      setTool("brush");
+      updateSize();
+    });
+    
+    sizeInput.addEventListener("input", updateSize);
+    window.addEventListener("resize", resizeCanvas);
+
+    resizeCanvas();
+    updateSize();
+  </script>
+</body>
+</html>
