@@ -1757,6 +1757,27 @@
 
 
     // --- PRE-EXIST DRAWINGS ENGINE ---
+    const STORAGE_KEY = 'paintPad_preExists';
+
+    function getSavedPreExists() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function addPreExistToStorage(dataUrl) {
+      const saved = getSavedPreExists();
+      saved.push(dataUrl);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+    }
+
+    function removePreExistFromStorage(dataUrl) {
+      let saved = getSavedPreExists();
+      saved = saved.filter(url => url !== dataUrl);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+    }
 
     // Exclusively isolates the base Paint Canvas (ignoring floating Shapes/Images)
     function extractDrawingImage(ctx, canvasEl) {
@@ -1829,13 +1850,7 @@
       }
     });
 
-    saveAsPatternBtn.addEventListener("click", () => {
-      const dataUrl = extractDrawingImage(context, canvas);
-      if (!dataUrl) {
-          alert("Nothing uniquely drawn on the canvas yet to save!");
-          return;
-      }
-      
+    function renderGalleryItem(dataUrl) {
       const wrapper = document.createElement("div");
       wrapper.style.position = "relative";
       wrapper.style.display = "inline-block";
@@ -1850,17 +1865,11 @@
       img.style.cursor = "pointer";
       img.style.background = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 2 2\"><rect width=\"1\" height=\"1\" fill=\"%23ddd\"/><rect x=\"1\" y=\"1\" width=\"1\" height=\"1\" fill=\"%23ddd\"/></svg>')";
       img.style.backgroundSize = "10px 10px";
-      img.title = "Click to Fill Canvas (Tile)";
+      img.title = "Click to insert into canvas";
       
-      // Keep pattern fill on image click
+      // Inserting as a single movable object
       img.addEventListener("click", () => {
-         saveHistory();
-         const pat = context.createPattern(img, 'repeat');
-         context.save();
-         context.setTransform(1, 0, 0, 1, 0, 0);
-         context.fillStyle = pat;
-         context.fillRect(0, 0, canvas.width, canvas.height);
-         context.restore();
+         insertImageToCanvas(dataUrl);
       });
 
       const deleteBtn = document.createElement("button");
@@ -1886,16 +1895,29 @@
       deleteBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           wrapper.remove();
+          removePreExistFromStorage(dataUrl);
       });
 
       wrapper.appendChild(img);
       wrapper.appendChild(deleteBtn);
       patternGallery.appendChild(wrapper);
+    }
+
+    saveAsPatternBtn.addEventListener("click", () => {
+      const dataUrl = extractDrawingImage(context, canvas);
+      if (!dataUrl) {
+          alert("Nothing uniquely drawn on the canvas yet to save!");
+          return;
+      }
+      
+      renderGalleryItem(dataUrl);
+      addPreExistToStorage(dataUrl);
     });
 
     // Delete All Pre-Exists Functionality
     clearPreExistsBtn.addEventListener("click", () => {
        patternGallery.innerHTML = '';
+       localStorage.removeItem(STORAGE_KEY);
     });
     // --- END PRE-EXIST DRAWINGS ENGINE ---
 
@@ -2193,6 +2215,9 @@
     
     sizeInput.addEventListener("input", updateSize);
     window.addEventListener("resize", resizeCanvas);
+
+    // Initialize Pre-Exists on load
+    getSavedPreExists().forEach(dataUrl => renderGalleryItem(dataUrl));
 
     resizeCanvas();
     updateSize();
