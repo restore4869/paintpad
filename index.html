@@ -634,6 +634,7 @@
     <section id="preExistPanel" class="pre-exist-panel" aria-label="Pre-Exist Drawings" hidden>
       <button id="saveAsPatternBtn" class="tool-button wide" style="width: 100%; height: 36px; font-size: 12px;" title="Saves your current drawing as a reusable tile">Save Drawing to Pre-Exists</button>
       <button id="clearPreExistsBtn" class="tool-button wide danger" style="width: 100%; height: 36px; font-size: 12px; margin-top: 4px;">Delete All Pre-Exists</button>
+      <button id="coolDesignBtn" class="tool-button wide" style="width: 100%; height: 36px; font-size: 12px; margin-top: 4px;" title="Randomly arranges the app's built-in shapes into a fun pattern">🎨 Cool Designs/Patterns</button>
       <div style="margin: 4px 0; border-top: 1px dashed var(--panel-border);"></div>
       <span style="font-size: 12px; font-weight: bold; color: var(--ink);">Saved Pre-Exists</span>
       <div id="patternGallery" style="display: flex; gap: 8px; flex-wrap: wrap; max-height: 120px; overflow-y: auto; padding-top: 4px;">
@@ -723,6 +724,7 @@
     const preExistPanel = document.querySelector("#preExistPanel");
     const saveAsPatternBtn = document.querySelector("#saveAsPatternBtn");
     const clearPreExistsBtn = document.querySelector("#clearPreExistsBtn");
+    const coolDesignBtn = document.querySelector("#coolDesignBtn");
     const patternGallery = document.querySelector("#patternGallery");
 
     const saveQuickBtn = document.querySelector("#saveQuickBtn");
@@ -813,11 +815,35 @@
       renderFloatingImages();
     }
 
+    function cloneFloatingImages(list) {
+      return list.map(item => ({ ...item }));
+    }
+
     function saveHistory() {
-      state.history.push(context.getImageData(0, 0, canvas.width, canvas.height));
+      state.history.push({
+        canvas: context.getImageData(0, 0, canvas.width, canvas.height),
+        floatingImages: cloneFloatingImages(state.floatingImages)
+      });
       if (state.history.length > 20) {
         state.history.shift();
       }
+    }
+
+    function hideFloatingControls() {
+      document.getElementById('imageSizeControls').style.display = 'none';
+      document.getElementById('imageRotateControls').style.display = 'none';
+      document.getElementById('imageDividerControls').style.display = 'none';
+    }
+
+    function handleUndo() {
+      const snapshot = state.history.pop();
+      if (!snapshot) return;
+      context.putImageData(snapshot.canvas, 0, 0);
+      state.floatingImages = cloneFloatingImages(snapshot.floatingImages);
+      state.activeImage = null;
+      hideFloatingControls();
+      updateImageInputs();
+      renderFloatingImages();
     }
 
     function pointFromEvent(event) {
@@ -1193,42 +1219,40 @@
     }
 
     function bakeFloatingObjects() {
-      if (state.floatingImages.length === 0) return;
-      
+      // Only flatten the item currently being worked on (so Fill/Paint can color it in).
+      // Other floating shapes/images are left alone and stay floating with their border visible.
+      if (!state.activeImage) return;
+
+      const img = state.activeImage;
       saveHistory();
 
-      state.floatingImages.forEach(img => {
-        const cx = img.x + img.w / 2;
-        const cy = img.y + img.h / 2;
-        const rad = (img.angle || 0) * Math.PI / 180;
+      const cx = img.x + img.w / 2;
+      const cy = img.y + img.h / 2;
+      const rad = (img.angle || 0) * Math.PI / 180;
 
-        context.save();
-        context.globalAlpha = img.opacity !== undefined ? img.opacity : 1;
-        context.globalCompositeOperation = 'source-over';
-        
-        context.translate(cx, cy);
-        context.rotate(rad);
+      context.save();
+      context.globalAlpha = img.opacity !== undefined ? img.opacity : 1;
+      context.globalCompositeOperation = 'source-over';
 
-        if (img.type === 'shape') {
-          context.strokeStyle = img.color;
-          context.lineWidth = img.lineWidth;
-          context.lineCap = "round";
-          context.lineJoin = "round";
-          drawShapePath(context, -img.w / 2, -img.h / 2, img.w, img.h, img.shapeType);
-          context.stroke();
-        } else {
-          context.drawImage(img.img, -img.w / 2, -img.h / 2, img.w, img.h);
-        }
-        context.restore();
-      });
+      context.translate(cx, cy);
+      context.rotate(rad);
 
-      state.floatingImages = [];
+      if (img.type === 'shape') {
+        context.strokeStyle = img.color;
+        context.lineWidth = img.lineWidth;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        drawShapePath(context, -img.w / 2, -img.h / 2, img.w, img.h, img.shapeType);
+        context.stroke();
+      } else {
+        context.drawImage(img.img, -img.w / 2, -img.h / 2, img.w, img.h);
+      }
+      context.restore();
+
+      state.floatingImages = state.floatingImages.filter(item => item !== img);
       state.activeImage = null;
-      
-      document.getElementById('imageSizeControls').style.display = 'none';
-      document.getElementById('imageRotateControls').style.display = 'none';
-      document.getElementById('imageDividerControls').style.display = 'none';
 
+      hideFloatingControls();
       updateImageInputs();
       renderFloatingImages();
     }
@@ -1273,6 +1297,13 @@
       context.clearRect(0, 0, window.innerWidth, window.innerHeight);
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+      // Also remove any pre-existing floating shapes/images, so Clear truly clears everything
+      state.floatingImages = [];
+      state.activeImage = null;
+      hideFloatingControls();
+      updateImageInputs();
+      renderFloatingImages();
     }
 
     function updateSize() {
@@ -1291,19 +1322,29 @@
       updateSize();
     }
 
-    function insertImageToCanvas(src) {
+    function insertImageToCanvas(src, options = {}) {
       const img = new Image();
       img.crossOrigin = "anonymous"; 
       img.onload = () => {
         const logicalW = window.innerWidth;
         const logicalH = window.innerHeight;
-        const scale = Math.min(1, logicalW / img.width, logicalH / img.height) * 0.6;
-        
-        const w = img.width * scale;
-        const h = img.height * scale;
-        const x = (logicalW - w) / 2;
-        const y = (logicalH - h) / 2;
 
+        let w, h, x, y;
+        if (options.fillCanvas) {
+          // Insert sized to cover the entire current Paint Pad canvas
+          w = logicalW;
+          h = logicalH;
+          x = 0;
+          y = 0;
+        } else {
+          const scale = Math.min(1, logicalW / img.width, logicalH / img.height) * 0.6;
+          w = img.width * scale;
+          h = img.height * scale;
+          x = (logicalW - w) / 2;
+          y = (logicalH - h) / 2;
+        }
+
+        saveHistory();
         const newImg = { type: 'image', img, x, y, w, h, angle: 0, id: Date.now() };
         state.floatingImages.push(newImg);
         state.activeImage = newImg;
@@ -1369,7 +1410,7 @@
       renderFloatingImages();
     });
 
-    function renderFloatingImages() {
+    function renderFloatingImages(options = {}) {
       imageContext.clearRect(0, 0, imageCanvas.width / (window.devicePixelRatio || 1), imageCanvas.height / (window.devicePixelRatio || 1));
 
       state.floatingImages.forEach(img => {
@@ -1395,6 +1436,7 @@
               imageContext.drawImage(img.img, -img.w / 2, -img.h / 2, img.w, img.h);
           }
 
+          if (!options.hideIndicators) {
           if (img === state.activeImage) {
               imageContext.strokeStyle = '#0f766e';
               imageContext.lineWidth = 2;
@@ -1426,6 +1468,22 @@
               imageContext.arc(0, -img.h / 2 - 24, 6, 0, Math.PI * 2);
               imageContext.fill();
               imageContext.stroke();
+          } else if (img.selected) {
+              // Multi-selected via Ctrl+A: same prominent teal border, no handles
+              imageContext.strokeStyle = '#0f766e';
+              imageContext.lineWidth = 2;
+              imageContext.setLineDash([6, 6]);
+              imageContext.strokeRect(-img.w / 2, -img.h / 2, img.w, img.h);
+              imageContext.setLineDash([]);
+          } else {
+              // Not active, not multi-selected: still show a subtle border so it stays
+              // visually distinguishable as a floating (not-yet-baked) shape/image
+              imageContext.strokeStyle = '#94a3b8';
+              imageContext.lineWidth = 1.5;
+              imageContext.setLineDash([4, 4]);
+              imageContext.strokeRect(-img.w / 2, -img.h / 2, img.w, img.h);
+              imageContext.setLineDash([]);
+          }
           }
 
           imageContext.restore();
@@ -1489,8 +1547,10 @@
 
     canvas.addEventListener("pointerdown", (event) => {
       const point = pointFromEvent(event);
+      state.floatingImages.forEach(img => { img.selected = false; });
 
       if (state.activeShape !== "none") {
+          saveHistory();
           const newShape = {
               type: 'shape',
               shapeType: state.activeShape,
@@ -1865,11 +1925,11 @@
       img.style.cursor = "pointer";
       img.style.background = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 2 2\"><rect width=\"1\" height=\"1\" fill=\"%23ddd\"/><rect x=\"1\" y=\"1\" width=\"1\" height=\"1\" fill=\"%23ddd\"/></svg>')";
       img.style.backgroundSize = "10px 10px";
-      img.title = "Click to insert into canvas";
+      img.title = "Click to insert covering the entire canvas";
       
-      // Inserting as a single movable object
+      // Inserting sized to fill the entire current canvas
       img.addEventListener("click", () => {
-         insertImageToCanvas(dataUrl);
+         insertImageToCanvas(dataUrl, { fillCanvas: true });
       });
 
       const deleteBtn = document.createElement("button");
@@ -1922,12 +1982,155 @@
     // --- END PRE-EXIST DRAWINGS ENGINE ---
 
 
+    // --- COOL DESIGNS / PATTERNS ENGINE ---
+    // Randomly arranges the app's built-in pre-existing shapes (from the Shapes panel)
+    // into one of a few fun layouts, as floating/editable objects on the canvas.
+    const COOL_DESIGN_SHAPES = ["rectangle", "square", "triangle", "oval", "pentagon", "hexagon", "star", "star5", "cloud", "arrowUp", "arrowDown", "arrowLeft", "arrowRight", "curve"];
+
+    function randomPick(list) {
+      return list[Math.floor(Math.random() * list.length)];
+    }
+
+    function randomDesignColor() {
+      const palette = swatches.map(s => s.dataset.color);
+      return randomPick(palette);
+    }
+
+    function addDesignShape(shapeType, x, y, w, h, angle, color) {
+      const shape = {
+        type: 'shape',
+        shapeType,
+        color,
+        lineWidth: 2 + Math.random() * 4,
+        opacity: 0.7 + Math.random() * 0.3,
+        x, y, w, h,
+        angle,
+        id: Date.now() + Math.random()
+      };
+      state.floatingImages.push(shape);
+      return shape;
+    }
+
+    // Layout 1: concentric rings of shapes radiating from a center point, like a mandala
+    function buildMandalaDesign(cx, cy) {
+      const ringCount = 1 + Math.floor(Math.random() * 2);
+      const shapeType = randomPick(COOL_DESIGN_SHAPES);
+      let lastShape = null;
+      for (let ring = 0; ring < ringCount; ring += 1) {
+        const petals = 6 + Math.floor(Math.random() * 6);
+        const radius = 70 + ring * 90 + Math.random() * 20;
+        const size = 36 + Math.random() * 36;
+        for (let i = 0; i < petals; i += 1) {
+          const rad = (i / petals) * Math.PI * 2;
+          const x = cx + Math.cos(rad) * radius - size / 2;
+          const y = cy + Math.sin(rad) * radius - size / 2;
+          const angleDeg = (rad * 180 / Math.PI) + 90;
+          lastShape = addDesignShape(shapeType, x, y, size, size, angleDeg, randomDesignColor());
+        }
+      }
+      const coreSize = 46 + Math.random() * 26;
+      lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), cx - coreSize / 2, cy - coreSize / 2, coreSize, coreSize, 0, randomDesignColor());
+      return lastShape;
+    }
+
+    // Layout 2: an evenly-spaced grid of randomly sized/rotated shapes
+    function buildGridDesign(logicalW, logicalH) {
+      const cols = 3 + Math.floor(Math.random() * 3);
+      const rows = 3 + Math.floor(Math.random() * 3);
+      const cellW = (logicalW * 0.7) / cols;
+      const cellH = (logicalH * 0.7) / rows;
+      const startX = logicalW * 0.15;
+      const startY = logicalH * 0.15;
+      let lastShape = null;
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          const size = Math.min(cellW, cellH) * (0.5 + Math.random() * 0.35);
+          const x = startX + c * cellW + (cellW - size) / 2;
+          const y = startY + r * cellH + (cellH - size) / 2;
+          lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), x, y, size, size, Math.random() * 360, randomDesignColor());
+        }
+      }
+      return lastShape;
+    }
+
+    // Layout 3: shapes scattered freely across the canvas
+    function buildScatterDesign(logicalW, logicalH) {
+      const count = 10 + Math.floor(Math.random() * 10);
+      let lastShape = null;
+      for (let i = 0; i < count; i += 1) {
+        const size = 24 + Math.random() * 70;
+        const x = Math.random() * Math.max(1, logicalW - size);
+        const y = Math.random() * Math.max(1, logicalH - size);
+        lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), x, y, size, size, Math.random() * 360, randomDesignColor());
+      }
+      return lastShape;
+    }
+
+    // Layout 4: shapes trailing outward along a spiral
+    function buildSpiralDesign(cx, cy) {
+      const count = 16 + Math.floor(Math.random() * 10);
+      const shapeType = randomPick(COOL_DESIGN_SHAPES);
+      let lastShape = null;
+      for (let i = 0; i < count; i += 1) {
+        const rad = i * 0.5;
+        const radius = i * 8;
+        const size = 18 + i * 1.2;
+        const x = cx + Math.cos(rad) * radius - size / 2;
+        const y = cy + Math.sin(rad) * radius - size / 2;
+        lastShape = addDesignShape(shapeType, x, y, size, size, rad * 180 / Math.PI, randomDesignColor());
+      }
+      return lastShape;
+    }
+
+    function generateCoolDesign() {
+      saveHistory();
+
+      const logicalW = window.innerWidth;
+      const logicalH = window.innerHeight;
+      const cx = logicalW / 2;
+      const cy = logicalH / 2;
+
+      const layout = randomPick(['mandala', 'grid', 'scatter', 'spiral']);
+      let lastShape;
+
+      if (layout === 'mandala') {
+        lastShape = buildMandalaDesign(cx, cy);
+      } else if (layout === 'grid') {
+        lastShape = buildGridDesign(logicalW, logicalH);
+      } else if (layout === 'spiral') {
+        lastShape = buildSpiralDesign(cx, cy);
+      } else {
+        lastShape = buildScatterDesign(logicalW, logicalH);
+      }
+
+      // Newly generated shapes stay as floating/editable objects (like manually drawn shapes),
+      // so the user can move, resize, or delete pieces of the design before it's finalized.
+      state.activeImage = lastShape;
+      setTool('image');
+
+      document.getElementById('imageSizeControls').style.display = 'flex';
+      document.getElementById('imageRotateControls').style.display = 'flex';
+      document.getElementById('imageDividerControls').style.display = 'block';
+
+      updateImageInputs();
+      renderFloatingImages();
+
+      imagesPanel.hidden = false;
+      imagesButton.setAttribute("aria-expanded", "true");
+      preExistPanel.hidden = true;
+      preExistMainBtn.setAttribute("aria-expanded", "false");
+    }
+
+    coolDesignBtn.addEventListener("click", generateCoolDesign);
+    // --- END COOL DESIGNS / PATTERNS ENGINE ---
+
+
     // --- FILE SYSTEM ACCESS & SAVE LOGIC ---
     function getCombinedCanvas() {
-      // 1. Temporarily clear active selection so bounding boxes/handles don't appear in the final save
+      // 1. Temporarily hide all selection/floating borders so they don't appear in the final save
       const tempActive = state.activeImage;
       state.activeImage = null;
-      renderFloatingImages();
+      renderFloatingImages({ hideIndicators: true });
 
       // 2. Create the off-screen combined canvas
       const combined = document.createElement('canvas');
@@ -2071,14 +2274,116 @@
 
     saveQuickBtn.addEventListener("click", handleSaveQuick);
 
-    // Keyboard shortcut to quick save
+    // --- KEYBOARD SHORTCUTS ---
+    function isEditableTarget(target) {
+      if (!target) return false;
+      const tag = target.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+    }
+
     window.addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Save (Ctrl/Cmd + S) works everywhere, even while typing
+      if (ctrl && e.key.toLowerCase() === 's') {
         e.preventDefault(); // Prevent standard browser save HTML dialog
         handleSaveQuick();
+        return;
+      }
+
+      // Let normal typing/editing shortcuts behave normally in text fields
+      if (isEditableTarget(e.target)) return;
+
+      // Undo (Ctrl/Cmd + Z) — restores both the canvas AND any pre-existing floating shapes/images
+      if (ctrl && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Select All (Ctrl/Cmd + A) — highlights every shape/image currently on the canvas
+      if (ctrl && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        if (state.floatingImages.length > 0) {
+          state.floatingImages.forEach(img => { img.selected = true; });
+          state.activeImage = state.floatingImages[state.floatingImages.length - 1];
+          renderFloatingImages();
+        }
+        return;
+      }
+
+      // Copy (Ctrl/Cmd + C) — copies the selected shape/image, or the whole canvas if nothing is selected
+      if (ctrl && e.key.toLowerCase() === 'c') {
+        if (state.activeImage) {
+          e.preventDefault();
+          window.paintClipboard = { ...state.activeImage };
+        } else {
+          canvas.toBlob(async (blob) => {
+            if (!blob) return;
+            try {
+              await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+            } catch (err) {
+              console.error("Clipboard copy failed:", err);
+            }
+          });
+        }
+        return;
+      }
+
+      // Paste (Ctrl/Cmd + V) — pastes a duplicate of the last copied shape/image
+      if (ctrl && e.key.toLowerCase() === 'v') {
+        if (window.paintClipboard) {
+          e.preventDefault();
+          saveHistory();
+          const clone = {
+            ...window.paintClipboard,
+            x: window.paintClipboard.x + 25,
+            y: window.paintClipboard.y + 25,
+            id: Date.now() + Math.random()
+          };
+          state.floatingImages.forEach(img => { img.selected = false; });
+          state.floatingImages.push(clone);
+          state.activeImage = clone;
+          window.paintClipboard = clone;
+          updateImageInputs();
+          renderFloatingImages();
+        }
+        return;
+      }
+
+      // Delete/Backspace — removes the selected shape(s)/image(s)
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const selected = state.floatingImages.filter(img => img.selected);
+        if (selected.length > 0) {
+          e.preventDefault();
+          saveHistory();
+          state.floatingImages = state.floatingImages.filter(img => !img.selected);
+          state.activeImage = null;
+          hideFloatingControls();
+          updateImageInputs();
+          renderFloatingImages();
+        } else if (state.activeImage) {
+          e.preventDefault();
+          saveHistory();
+          state.floatingImages = state.floatingImages.filter(img => img !== state.activeImage);
+          state.activeImage = null;
+          hideFloatingControls();
+          updateImageInputs();
+          renderFloatingImages();
+        }
+        return;
+      }
+
+      // Escape — deselect everything
+      if (e.key === 'Escape') {
+        if (state.activeImage || state.floatingImages.some(img => img.selected)) {
+          state.activeImage = null;
+          state.floatingImages.forEach(img => { img.selected = false; });
+          renderFloatingImages();
+        }
       }
     });
-    // --- END FILE SYSTEM LOGIC ---
+    // --- END KEYBOARD SHORTCUTS ---
 
 
     // Note Slip Logic
@@ -2125,6 +2430,7 @@
 
     deleteActiveBtn.addEventListener("click", () => {
       if (state.activeImage) {
+        saveHistory();
         state.floatingImages = state.floatingImages.filter(img => img !== state.activeImage);
         state.activeImage = state.floatingImages.length > 0 ? state.floatingImages[state.floatingImages.length - 1] : null;
         updateImageInputs();
@@ -2137,6 +2443,7 @@
     });
 
     deleteAllBtn.addEventListener("click", () => {
+      if (state.floatingImages.length > 0) saveHistory();
       state.floatingImages = [];
       state.activeImage = null;
       updateImageInputs();
@@ -2191,10 +2498,7 @@
     markerSizeInput.addEventListener("input", updateMarkerControls);
     markerOpacityInput.addEventListener("input", updateMarkerControls);
 
-    undoButton.addEventListener("click", () => {
-      const snapshot = state.history.pop();
-      if (snapshot) context.putImageData(snapshot, 0, 0);
-    });
+    undoButton.addEventListener("click", handleUndo);
 
     clearButton.addEventListener("click", () => {
       clearCanvas();
