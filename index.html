@@ -537,7 +537,7 @@
     <button id="shapesButton" class="shapes-label" type="button" aria-expanded="false" aria-controls="shapesPanel">Shapes</button>
     <section id="shapesPanel" class="shapes-panel" aria-label="Shape options" hidden>
       <p style="font-size: 10.5px; color: #717f91; margin: 0 0 6px 0; line-height: 1.3;">
-        <strong>Tip:</strong> Drag to create a shape. Click <b>Fill</b> or <b>Paint</b> in the toolbox to automatically flatten it so you can color it in!
+        <strong>Tip:</strong> Drag to create a shape. It stays movable and keeps its border until you click <b>Fill</b> and then click inside it to color it in!
       </p>
       <label class="marker-field">
         <span>Active Shape</span>
@@ -1218,6 +1218,119 @@
       canvas.style.cursor = state.zoom === 2 ? "zoom-out" : "zoom-in";
     }
 
+    // --- SHAPE RENDER STYLES (used by Cool Designs/Patterns) ---
+    // A shape drawn normally (Shapes panel) has no img.renderStyle, so it falls through
+    // to the plain flat-stroke look below, completely unchanged from before.
+
+    function paintFlatShape(ctx, lx, ly, w, h, shapeType, img) {
+      ctx.strokeStyle = img.color;
+      ctx.lineWidth = img.lineWidth;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      drawShapePath(ctx, lx, ly, w, h, shapeType);
+      ctx.stroke();
+    }
+
+    function paint3DShape(ctx, lx, ly, w, h, shapeType, img) {
+      const offset = Math.max(3, Math.min(w, h) * 0.07);
+
+      // Drop-shadow / extrusion layer for a "popped out" 3D look
+      ctx.save();
+      ctx.translate(offset, offset);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      drawShapePath(ctx, lx, ly, w, h, shapeType);
+      ctx.fill();
+      ctx.restore();
+
+      // Main surface: light-to-dark gradient fill simulates a lit, rounded face
+      const grad = ctx.createLinearGradient(lx, ly, lx + w, ly + h);
+      grad.addColorStop(0, img.fillLight);
+      grad.addColorStop(1, img.fillDark);
+      ctx.fillStyle = grad;
+      drawShapePath(ctx, lx, ly, w, h, shapeType);
+      ctx.fill();
+
+      ctx.strokeStyle = img.fillDark;
+      ctx.lineWidth = Math.max(1.5, img.lineWidth * 0.6);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      drawShapePath(ctx, lx, ly, w, h, shapeType);
+      ctx.stroke();
+    }
+
+    function paintSketchShape(ctx, lx, ly, w, h, shapeType, img) {
+      // Faint color wash first
+      ctx.save();
+      ctx.globalAlpha = (img.opacity !== undefined ? img.opacity : 1) * 0.35;
+      ctx.fillStyle = img.fillLight;
+      drawShapePath(ctx, lx, ly, w, h, shapeType);
+      ctx.fill();
+      ctx.restore();
+
+      // Several jittered outline passes to mimic a hand-drawn, rough pencil/pen sketch
+      const passes = 3;
+      for (let i = 0; i < passes; i += 1) {
+        ctx.save();
+        ctx.translate((Math.random() - 0.5) * Math.max(2, w * 0.025), (Math.random() - 0.5) * Math.max(2, h * 0.025));
+        ctx.rotate((Math.random() - 0.5) * 0.06);
+        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = img.fillDark;
+        ctx.lineWidth = Math.max(1, img.lineWidth * 0.5);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        drawShapePath(ctx, lx, ly, w, h, shapeType);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function paintComicShape(ctx, lx, ly, w, h, shapeType, img) {
+      // Halftone "Ben-Day dots" screen tone, clipped to the shape's own silhouette
+      ctx.save();
+      drawShapePath(ctx, lx, ly, w, h, shapeType);
+      ctx.clip();
+
+      ctx.fillStyle = img.fillLight;
+      ctx.fillRect(lx, ly, w, h);
+
+      const spacing = Math.max(4, Math.min(w, h) * 0.1);
+      const maxDotRadius = spacing * 0.42;
+      ctx.fillStyle = img.fillDark;
+      for (let yy = ly; yy < ly + h; yy += spacing) {
+        for (let xx = lx; xx < lx + w; xx += spacing) {
+          const r = maxDotRadius * (0.6 + Math.random() * 0.4);
+          ctx.beginPath();
+          ctx.arc(xx + spacing / 2, yy + spacing / 2, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      // Bold comic-ink outline drawn after the clip is released
+      ctx.strokeStyle = img.fillDark;
+      ctx.lineWidth = Math.max(2, img.lineWidth);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      drawShapePath(ctx, lx, ly, w, h, shapeType);
+      ctx.stroke();
+    }
+
+    function paintFloatingShape(ctx, img) {
+      const lx = -img.w / 2;
+      const ly = -img.h / 2;
+
+      if (img.renderStyle === '3d') {
+        paint3DShape(ctx, lx, ly, img.w, img.h, img.shapeType, img);
+      } else if (img.renderStyle === 'sketch') {
+        paintSketchShape(ctx, lx, ly, img.w, img.h, img.shapeType, img);
+      } else if (img.renderStyle === 'comic') {
+        paintComicShape(ctx, lx, ly, img.w, img.h, img.shapeType, img);
+      } else {
+        paintFlatShape(ctx, lx, ly, img.w, img.h, img.shapeType, img);
+      }
+    }
+    // --- END SHAPE RENDER STYLES ---
+
     function bakeFloatingObjects() {
       // Only flatten the item currently being worked on (so Fill/Paint can color it in).
       // Other floating shapes/images are left alone and stay floating with their border visible.
@@ -1238,12 +1351,7 @@
       context.rotate(rad);
 
       if (img.type === 'shape') {
-        context.strokeStyle = img.color;
-        context.lineWidth = img.lineWidth;
-        context.lineCap = "round";
-        context.lineJoin = "round";
-        drawShapePath(context, -img.w / 2, -img.h / 2, img.w, img.h, img.shapeType);
-        context.stroke();
+        paintFloatingShape(context, img);
       } else {
         context.drawImage(img.img, -img.w / 2, -img.h / 2, img.w, img.h);
       }
@@ -1258,10 +1366,9 @@
     }
 
     function setTool(tool) {
-      if (tool !== "image") {
-        bakeFloatingObjects();
-      }
-
+      // Switching tools no longer bakes anything automatically — floating shapes/images
+      // (including Saved Pre-Exist drawings) stay floating with their border and stay
+      // selectable until the user actually interacts with them (see Fill handling below).
       state.tool = tool;
       toolButtons.forEach((button) => {
         button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
@@ -1426,12 +1533,7 @@
           imageContext.rotate(rad);
 
           if (img.type === 'shape') {
-              imageContext.strokeStyle = img.color;
-              imageContext.lineWidth = img.lineWidth;
-              imageContext.lineCap = "round";
-              imageContext.lineJoin = "round";
-              drawShapePath(imageContext, -img.w / 2, -img.h / 2, img.w, img.h, img.shapeType);
-              imageContext.stroke();
+              paintFloatingShape(imageContext, img);
           } else {
               imageContext.drawImage(img.img, -img.w / 2, -img.h / 2, img.w, img.h);
           }
@@ -1577,6 +1679,20 @@
       }
 
       if (state.floatingImages.length > 0) {
+          // Fill tool: clicking directly on a floating shape flattens just that one in
+          // place and fills it immediately, instead of selecting/dragging it. Everything
+          // else stays floating and stays selectable.
+          if (state.tool === 'paint') {
+              for (let i = state.floatingImages.length - 1; i >= 0; i--) {
+                  if (getHitAction(point, state.floatingImages[i])) {
+                      state.activeImage = state.floatingImages[i];
+                      bakeFloatingObjects();
+                      paintFill(point);
+                      return;
+                  }
+              }
+          }
+
           if (state.activeImage) {
               const action = getHitAction(point, state.activeImage);
               if (action) {
@@ -1653,30 +1769,10 @@
       }
 
       if (!state.drawing && !state.imageDragState) {
-          if (state.floatingImages.length > 0 && state.activeShape === "none") {
-              let action = null;
-              if (state.activeImage) action = getHitAction(point, state.activeImage);
-              
-              if (action) {
-                  if (action === 'move') canvas.style.cursor = 'move';
-                  else if (action === 'rotate') canvas.style.cursor = 'grab';
-                  else if (action === 'nw' || action === 'se') canvas.style.cursor = 'nwse-resize';
-                  else if (action === 'ne' || action === 'sw') canvas.style.cursor = 'nesw-resize';
-              } else {
-                  let hoveredOther = false;
-                  for (let i = state.floatingImages.length - 1; i >= 0; i--) {
-                      if (getHitAction(point, state.floatingImages[i])) { hoveredOther = true; break; }
-                  }
-                  if (hoveredOther) {
-                      canvas.style.cursor = 'pointer';
-                  } else {
-                      if (state.tool === 'eraser') canvas.style.cursor = 'cell';
-                      else if (state.tool === 'magnifier') canvas.style.cursor = state.zoom === 2 ? 'zoom-out' : 'zoom-in';
-                      else if (state.tool === 'image') canvas.style.cursor = 'default';
-                      else canvas.style.cursor = 'crosshair';
-                  }
-              }
-          }
+          if (state.tool === 'eraser') canvas.style.cursor = 'cell';
+          else if (state.tool === 'magnifier') canvas.style.cursor = state.zoom === 2 ? 'zoom-out' : 'zoom-in';
+          else if (state.tool === 'image') canvas.style.cursor = 'default';
+          else canvas.style.cursor = 'crosshair';
           return;
       }
 
@@ -1991,18 +2087,37 @@
       return list[Math.floor(Math.random() * list.length)];
     }
 
-    function randomDesignColor() {
-      const palette = swatches.map(s => s.dataset.color);
-      return randomPick(palette);
+    // Feature 1: different shades of one hue, from light to dark, for a cohesive palette
+    function hslToHex(h, s, l) {
+      s /= 100; l /= 100;
+      const k = n => (n + h / 30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+      const toHex = x => Math.round(255 * x).toString(16).padStart(2, '0');
+      return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
     }
 
-    function addDesignShape(shapeType, x, y, w, h, angle, color) {
+    function buildShadePalette() {
+      const baseHue = Math.floor(Math.random() * 360);
+      const saturation = 55 + Math.random() * 30;
+      return [80, 65, 50, 35, 22].map(l => hslToHex(baseHue, saturation, l));
+    }
+
+    // Feature 2: an overall graphic-design treatment applied to every shape in the design
+    const COOL_DESIGN_STYLES = ['3d', 'sketch', 'comic'];
+
+    function addDesignShape(shapeType, x, y, w, h, angle, shadePalette, renderStyle) {
+      const lightShade = randomPick(shadePalette.slice(0, 2));
+      const darkShade = randomPick(shadePalette.slice(-2));
       const shape = {
         type: 'shape',
         shapeType,
-        color,
+        color: darkShade,
+        fillLight: lightShade,
+        fillDark: darkShade,
+        renderStyle,
         lineWidth: 2 + Math.random() * 4,
-        opacity: 0.7 + Math.random() * 0.3,
+        opacity: 0.85 + Math.random() * 0.15,
         x, y, w, h,
         angle,
         id: Date.now() + Math.random()
@@ -2012,7 +2127,7 @@
     }
 
     // Layout 1: concentric rings of shapes radiating from a center point, like a mandala
-    function buildMandalaDesign(cx, cy) {
+    function buildMandalaDesign(cx, cy, shadePalette, renderStyle) {
       const ringCount = 1 + Math.floor(Math.random() * 2);
       const shapeType = randomPick(COOL_DESIGN_SHAPES);
       let lastShape = null;
@@ -2025,16 +2140,16 @@
           const x = cx + Math.cos(rad) * radius - size / 2;
           const y = cy + Math.sin(rad) * radius - size / 2;
           const angleDeg = (rad * 180 / Math.PI) + 90;
-          lastShape = addDesignShape(shapeType, x, y, size, size, angleDeg, randomDesignColor());
+          lastShape = addDesignShape(shapeType, x, y, size, size, angleDeg, shadePalette, renderStyle);
         }
       }
       const coreSize = 46 + Math.random() * 26;
-      lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), cx - coreSize / 2, cy - coreSize / 2, coreSize, coreSize, 0, randomDesignColor());
+      lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), cx - coreSize / 2, cy - coreSize / 2, coreSize, coreSize, 0, shadePalette, renderStyle);
       return lastShape;
     }
 
     // Layout 2: an evenly-spaced grid of randomly sized/rotated shapes
-    function buildGridDesign(logicalW, logicalH) {
+    function buildGridDesign(logicalW, logicalH, shadePalette, renderStyle) {
       const cols = 3 + Math.floor(Math.random() * 3);
       const rows = 3 + Math.floor(Math.random() * 3);
       const cellW = (logicalW * 0.7) / cols;
@@ -2047,27 +2162,27 @@
           const size = Math.min(cellW, cellH) * (0.5 + Math.random() * 0.35);
           const x = startX + c * cellW + (cellW - size) / 2;
           const y = startY + r * cellH + (cellH - size) / 2;
-          lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), x, y, size, size, Math.random() * 360, randomDesignColor());
+          lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), x, y, size, size, Math.random() * 360, shadePalette, renderStyle);
         }
       }
       return lastShape;
     }
 
     // Layout 3: shapes scattered freely across the canvas
-    function buildScatterDesign(logicalW, logicalH) {
+    function buildScatterDesign(logicalW, logicalH, shadePalette, renderStyle) {
       const count = 10 + Math.floor(Math.random() * 10);
       let lastShape = null;
       for (let i = 0; i < count; i += 1) {
         const size = 24 + Math.random() * 70;
         const x = Math.random() * Math.max(1, logicalW - size);
         const y = Math.random() * Math.max(1, logicalH - size);
-        lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), x, y, size, size, Math.random() * 360, randomDesignColor());
+        lastShape = addDesignShape(randomPick(COOL_DESIGN_SHAPES), x, y, size, size, Math.random() * 360, shadePalette, renderStyle);
       }
       return lastShape;
     }
 
     // Layout 4: shapes trailing outward along a spiral
-    function buildSpiralDesign(cx, cy) {
+    function buildSpiralDesign(cx, cy, shadePalette, renderStyle) {
       const count = 16 + Math.floor(Math.random() * 10);
       const shapeType = randomPick(COOL_DESIGN_SHAPES);
       let lastShape = null;
@@ -2077,7 +2192,7 @@
         const size = 18 + i * 1.2;
         const x = cx + Math.cos(rad) * radius - size / 2;
         const y = cy + Math.sin(rad) * radius - size / 2;
-        lastShape = addDesignShape(shapeType, x, y, size, size, rad * 180 / Math.PI, randomDesignColor());
+        lastShape = addDesignShape(shapeType, x, y, size, size, rad * 180 / Math.PI, shadePalette, renderStyle);
       }
       return lastShape;
     }
@@ -2090,17 +2205,22 @@
       const cx = logicalW / 2;
       const cy = logicalH / 2;
 
+      // Feature 1: a cohesive palette of shades for this design
+      const shadePalette = buildShadePalette();
+      // Feature 2: an overall graphic-design treatment for this design (3D, rough sketch, or comic screen tone)
+      const renderStyle = randomPick(COOL_DESIGN_STYLES);
+
       const layout = randomPick(['mandala', 'grid', 'scatter', 'spiral']);
       let lastShape;
 
       if (layout === 'mandala') {
-        lastShape = buildMandalaDesign(cx, cy);
+        lastShape = buildMandalaDesign(cx, cy, shadePalette, renderStyle);
       } else if (layout === 'grid') {
-        lastShape = buildGridDesign(logicalW, logicalH);
+        lastShape = buildGridDesign(logicalW, logicalH, shadePalette, renderStyle);
       } else if (layout === 'spiral') {
-        lastShape = buildSpiralDesign(cx, cy);
+        lastShape = buildSpiralDesign(cx, cy, shadePalette, renderStyle);
       } else {
-        lastShape = buildScatterDesign(logicalW, logicalH);
+        lastShape = buildScatterDesign(logicalW, logicalH, shadePalette, renderStyle);
       }
 
       // Newly generated shapes stay as floating/editable objects (like manually drawn shapes),
@@ -2528,3 +2648,91 @@
   </script>
 </body>
 </html>
+<script>
+// --------------------------------------------------
+// Windows + macOS Keyboard Shortcuts
+// Supports:
+// Ctrl+C / ⌘C
+// Ctrl+V / ⌘V
+// Ctrl+Z / ⌘Z
+// Ctrl+A / ⌘A
+// --------------------------------------------------
+
+document.addEventListener("keydown", function (event) {
+
+    // Ctrl on Windows/Linux
+    // Command (⌘) on macOS
+    const shortcut = event.ctrlKey || event.metaKey;
+
+    // Ignore shortcuts while typing
+    const tag = event.target.tagName;
+
+    if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        event.target.isContentEditable
+    ) {
+        return;
+    }
+
+    if (!shortcut) {
+        return;
+    }
+
+    switch (event.key.toLowerCase()) {
+
+        // ------------------------------------
+        // Copy
+        // Ctrl+C / ⌘C
+        // ------------------------------------
+        case "c":
+
+            event.preventDefault();
+
+            copySelection();
+
+            break;
+
+
+        // ------------------------------------
+        // Paste
+        // Ctrl+V / ⌘V
+        // ------------------------------------
+        case "v":
+
+            event.preventDefault();
+
+            pasteSelection();
+
+            break;
+
+
+        // ------------------------------------
+        // Undo
+        // Ctrl+Z / ⌘Z
+        // ------------------------------------
+        case "z":
+
+            event.preventDefault();
+
+            undoLastAction();
+
+            break;
+
+
+        // ------------------------------------
+        // Select All
+        // Ctrl+A / ⌘A
+        // ------------------------------------
+        case "a":
+
+            event.preventDefault();
+
+            selectAllDrawings();
+
+            break;
+
+    }
+
+});
+</script>
