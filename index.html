@@ -13,9 +13,40 @@
       --panel-border: #cfd5dd;
       --accent: #0f766e;
       --accent-soft: #d8f3ee;
+      --accent-soft-text: #064e49;
       --canvas: #ffffff;
       --page: #e9edf2;
       --danger: #c2410c;
+      --danger-border: #fca5a5;
+      --danger-bg: #fef2f2;
+      --danger-bg-hover: #fee2e2;
+      --danger-border-hover: #f87171;
+      --surface: #f8fafc;
+      --surface-hover: #eef3f8;
+      --surface-hover-border: #8ea0b3;
+      --field-bg: #ffffff;
+      --swatch-ring: #ffffff;
+    }
+
+    body.night-mode {
+      color-scheme: dark;
+      --ink: #e6e9ef;
+      --panel: #1c212b;
+      --panel-border: #3a4150;
+      --accent: #2dd4bf;
+      --accent-soft: #103b38;
+      --accent-soft-text: #99f6e4;
+      --page: #0f1218;
+      --danger: #f87171;
+      --danger-border: #7f1d1d;
+      --danger-bg: #34161a;
+      --danger-bg-hover: #47191f;
+      --danger-border-hover: #b91c1c;
+      --surface: #262c38;
+      --surface-hover: #313847;
+      --surface-hover-border: #59627a;
+      --field-bg: #1c212b;
+      --swatch-ring: #1c212b;
     }
 
     * {
@@ -115,8 +146,8 @@
     .toolbox-toggle-btn { right: 14px; top: 14px; }
 
     .marker-label:hover, .shapes-label:hover, .images-label:hover, .delete-image-label:hover, .slips-label:hover, .pre-exist-label:hover, .toolbox-toggle-btn:hover {
-      border-color: #8ea0b3;
-      background: #eef3f8;
+      border-color: var(--surface-hover-border);
+      background: var(--surface-hover);
     }
 
     .marker-panel, .shapes-panel, .images-panel, .delete-image-panel, .pre-exist-panel {
@@ -219,7 +250,7 @@
       border: 1px solid var(--panel-border);
       border-radius: 6px;
       padding: 7px 8px;
-      background: #ffffff;
+      background: var(--field-bg);
       color: var(--ink);
       font: 600 12px/1 Arial, Helvetica, sans-serif;
       cursor: pointer;
@@ -232,7 +263,7 @@
       border: 1px solid var(--panel-border);
       border-radius: 6px;
       padding: 6px 8px;
-      background: #ffffff;
+      background: var(--field-bg);
       color: var(--ink);
       font: 400 12px/1 Arial, Helvetica, sans-serif;
     }
@@ -294,7 +325,7 @@
       place-items: center;
       border: 1px solid var(--panel-border);
       border-radius: 8px;
-      background: #f8fafc;
+      background: var(--surface);
       color: var(--ink);
       font: 700 18px/1 Arial, Helvetica, sans-serif;
       cursor: pointer;
@@ -325,32 +356,32 @@
     .tool-button:hover,
     .chip:hover,
     .swatch:hover {
-      border-color: #8ea0b3;
-      background: #eef3f8;
+      border-color: var(--surface-hover-border);
+      background: var(--surface-hover);
     }
 
     .tool-button[aria-pressed="true"],
     .chip[aria-pressed="true"] {
       border-color: var(--accent);
       background: var(--accent-soft);
-      color: #064e49;
+      color: var(--accent-soft-text);
     }
 
     .tool-button.danger {
       color: var(--danger);
-      border-color: #fca5a5;
-      background: #fef2f2;
+      border-color: var(--danger-border);
+      background: var(--danger-bg);
     }
     
     .tool-button.danger:hover {
-      background: #fee2e2;
-      border-color: #f87171;
+      background: var(--danger-bg-hover);
+      border-color: var(--danger-border-hover);
     }
 
     .swatch {
       width: 32px;
       height: 32px;
-      border: 2px solid #ffffff;
+      border: 2px solid var(--swatch-ring);
       outline: 1px solid var(--panel-border);
       border-radius: 50%;
       cursor: pointer;
@@ -372,7 +403,7 @@
       bottom: -2px;
       width: 10px;
       height: 10px;
-      border: 2px solid #ffffff;
+      border: 2px solid var(--swatch-ring);
       border-radius: 50%;
       background: var(--accent);
     }
@@ -393,7 +424,7 @@
       padding: 0 10px;
       border: 1px solid var(--panel-border);
       border-radius: 8px;
-      background: #f8fafc;
+      background: var(--surface);
       font: 700 13px/1 Arial, Helvetica, sans-serif;
     }
 
@@ -402,7 +433,7 @@
       border: 1px solid var(--panel-border);
       border-radius: 6px;
       padding: 6px 8px;
-      background: #ffffff;
+      background: var(--field-bg);
       color: var(--ink);
       font: 600 12px/1 Arial, Helvetica, sans-serif;
       cursor: pointer;
@@ -665,7 +696,8 @@
         <button class="swatch" type="button" data-color="#ec4899" aria-pressed="false" title="Pink" style="background:#ec4899"></button>
         <button id="customColorSwatch" class="swatch custom-color" type="button" data-color="#8b5cf6" aria-pressed="false" title="Custom color" style="background:#8b5cf6"></button>
         <button id="editColorButton" class="tool-button wide" type="button" title="Color options">Color Options</button>
-        <button id="songsButton" class="tool-button wide" type="button" title="2G songs with Google Gemini music">2G</button>
+        <button id="songsButton" class="tool-button wide" type="button" title="Google Gemini">Google Gemini</button>
+        <button id="dayNightBtn" class="tool-button wide" type="button" aria-pressed="false" title="Toggle between bright (Day) and dark (Night) mode">☀️ Day Mode</button>
         <input id="colorInput" class="color-picker" type="color" value="#8b5cf6" aria-label="Edit color">
 
         <label class="brush-control" title="Brushes">
@@ -747,6 +779,7 @@
     const clearButton = document.querySelector("#clearButton");
     const editColorButton = document.querySelector("#editColorButton");
     const songsButton = document.querySelector("#songsButton");
+    const dayNightBtn = document.querySelector("#dayNightBtn");
     const colorInput = document.querySelector("#colorInput");
     const customColorSwatch = document.querySelector("#customColorSwatch");
     const brushSelect = document.querySelector("#brushSelect");
@@ -776,6 +809,11 @@
       imageDragState: null,
       dragStartPoint: null,
       dragStartImg: null,
+
+      // Group Drag State (Ctrl+A multi-select drag)
+      groupDragActive: false,
+      groupDragStartPoint: null,
+      groupDragItems: null,
 
       // File System Saving State
       currentFileHandle: null,
@@ -1649,9 +1687,9 @@
 
     canvas.addEventListener("pointerdown", (event) => {
       const point = pointFromEvent(event);
-      state.floatingImages.forEach(img => { img.selected = false; });
 
       if (state.activeShape !== "none") {
+          state.floatingImages.forEach(img => { img.selected = false; });
           saveHistory();
           const newShape = {
               type: 'shape',
@@ -1677,6 +1715,22 @@
           document.getElementById('imageDividerControls').style.display = 'block';
           return;
       }
+
+      // Ctrl+A group drag: if multiple items are selected and the click lands on any one
+      // of them, drag the whole selection together instead of moving just one at a time.
+      const groupSelection = state.floatingImages.filter(img => img.selected);
+      if (groupSelection.length > 1 && groupSelection.some(img => getHitAction(point, img))) {
+          state.groupDragActive = true;
+          state.groupDragStartPoint = point;
+          state.groupDragItems = groupSelection.map(img => ({ img, startX: img.x, startY: img.y }));
+          state.activeImage = groupSelection[groupSelection.length - 1];
+          setTool('image');
+          updateImageInputs();
+          canvas.setPointerCapture(event.pointerId);
+          return;
+      }
+
+      state.floatingImages.forEach(img => { img.selected = false; });
 
       if (state.floatingImages.length > 0) {
           // Fill tool: clicking directly on a floating shape flattens just that one in
@@ -1747,6 +1801,17 @@
 
     canvas.addEventListener("pointermove", (event) => {
       const point = pointFromEvent(event);
+
+      if (state.groupDragActive && state.groupDragItems) {
+          const dx = point.x - state.groupDragStartPoint.x;
+          const dy = point.y - state.groupDragStartPoint.y;
+          state.groupDragItems.forEach(entry => {
+              entry.img.x = entry.startX + dx;
+              entry.img.y = entry.startY + dy;
+          });
+          renderFloatingImages();
+          return;
+      }
 
       if (state.creatingShape && state.activeImage) {
           const img = state.activeImage;
@@ -1825,6 +1890,12 @@
     });
 
     const finishPointerEvent = () => {
+      if (state.groupDragActive) {
+          state.groupDragActive = false;
+          state.groupDragItems = null;
+          state.groupDragStartPoint = null;
+      }
+
       if (state.creatingShape) {
           state.creatingShape = false;
           if (state.activeImage && (state.activeImage.w < 5 || state.activeImage.h < 5)) {
@@ -2627,6 +2698,37 @@
     editColorButton.addEventListener("click", () => colorInput.click());
     songsButton.addEventListener("click", () => window.open("https://gemini.google.com/app", "_blank", "noopener,noreferrer"));
     colorInput.addEventListener("input", () => setCustomColor(colorInput.value));
+
+    // --- DAY / NIGHT MODE ---
+    const NIGHT_MODE_STORAGE_KEY = 'paintPad.nightMode';
+
+    function loadNightModePreference() {
+      try {
+        return localStorage.getItem(NIGHT_MODE_STORAGE_KEY) === 'true';
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function saveNightModePreference(isNight) {
+      try {
+        localStorage.setItem(NIGHT_MODE_STORAGE_KEY, String(isNight));
+      } catch (err) {
+        console.error("Failed to save Day/Night preference:", err);
+      }
+    }
+
+    function setDayNightMode(isNight, persist = true) {
+      document.body.classList.toggle('night-mode', isNight);
+      dayNightBtn.setAttribute('aria-pressed', String(isNight));
+      dayNightBtn.textContent = isNight ? '🌙 Night Mode' : '☀️ Day Mode';
+      if (persist) saveNightModePreference(isNight);
+    }
+
+    dayNightBtn.addEventListener('click', () => {
+      setDayNightMode(!document.body.classList.contains('night-mode'));
+    });
+    // --- END DAY / NIGHT MODE ---
     
     brushSelect.addEventListener("change", () => {
       state.brush = brushSelect.value;
@@ -2643,96 +2745,11 @@
     // Initialize Pre-Exists on load
     getSavedPreExists().forEach(dataUrl => renderGalleryItem(dataUrl));
 
+    // Initialize Day/Night mode from the last saved preference
+    setDayNightMode(loadNightModePreference(), false);
+
     resizeCanvas();
     updateSize();
   </script>
 </body>
 </html>
-<script>
-// --------------------------------------------------
-// Windows + macOS Keyboard Shortcuts
-// Supports:
-// Ctrl+C / ⌘C
-// Ctrl+V / ⌘V
-// Ctrl+Z / ⌘Z
-// Ctrl+A / ⌘A
-// --------------------------------------------------
-
-document.addEventListener("keydown", function (event) {
-
-    // Ctrl on Windows/Linux
-    // Command (⌘) on macOS
-    const shortcut = event.ctrlKey || event.metaKey;
-
-    // Ignore shortcuts while typing
-    const tag = event.target.tagName;
-
-    if (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        event.target.isContentEditable
-    ) {
-        return;
-    }
-
-    if (!shortcut) {
-        return;
-    }
-
-    switch (event.key.toLowerCase()) {
-
-        // ------------------------------------
-        // Copy
-        // Ctrl+C / ⌘C
-        // ------------------------------------
-        case "c":
-
-            event.preventDefault();
-
-            copySelection();
-
-            break;
-
-
-        // ------------------------------------
-        // Paste
-        // Ctrl+V / ⌘V
-        // ------------------------------------
-        case "v":
-
-            event.preventDefault();
-
-            pasteSelection();
-
-            break;
-
-
-        // ------------------------------------
-        // Undo
-        // Ctrl+Z / ⌘Z
-        // ------------------------------------
-        case "z":
-
-            event.preventDefault();
-
-            undoLastAction();
-
-            break;
-
-
-        // ------------------------------------
-        // Select All
-        // Ctrl+A / ⌘A
-        // ------------------------------------
-        case "a":
-
-            event.preventDefault();
-
-            selectAllDrawings();
-
-            break;
-
-    }
-
-});
-</script>
