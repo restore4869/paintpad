@@ -26,6 +26,7 @@
       --surface-hover-border: #8ea0b3;
       --field-bg: #ffffff;
       --swatch-ring: #ffffff;
+      --canvas-border-width: 2px;
     }
 
     body.night-mode {
@@ -76,6 +77,21 @@
       isolation: isolate;
     }
 
+    .canvas-border-handle {
+      position: fixed;
+      width: 12px;
+      height: 12px;
+      background: var(--panel);
+      border: 2px solid var(--accent);
+      border-radius: 2px;
+      z-index: 6;
+      touch-action: none;
+    }
+    .canvas-border-handle.nw { top: calc(var(--canvas-border-width) + 4px); left: calc(var(--canvas-border-width) + 4px); cursor: nwse-resize; }
+    .canvas-border-handle.ne { top: calc(var(--canvas-border-width) + 4px); right: calc(var(--canvas-border-width) + 4px); cursor: nesw-resize; }
+    .canvas-border-handle.sw { bottom: calc(var(--canvas-border-width) + 4px); left: calc(var(--canvas-border-width) + 4px); cursor: nesw-resize; }
+    .canvas-border-handle.se { bottom: calc(var(--canvas-border-width) + 4px); right: calc(var(--canvas-border-width) + 4px); cursor: nwse-resize; }
+
     canvas {
       display: block;
       width: 100vw;
@@ -87,12 +103,19 @@
     
     #paintCanvas {
       background: var(--canvas);
+      position: fixed;
+      top: var(--canvas-border-width);
+      left: var(--canvas-border-width);
+      width: calc(100vw - (var(--canvas-border-width) * 2));
+      height: calc(100vh - (var(--canvas-border-width) * 2));
     }
 
     #imageCanvas {
-      position: absolute;
-      top: 0;
-      left: 0;
+      position: fixed;
+      top: var(--canvas-border-width);
+      left: var(--canvas-border-width);
+      width: calc(100vw - (var(--canvas-border-width) * 2));
+      height: calc(100vh - (var(--canvas-border-width) * 2));
       background: transparent;
       pointer-events: none;
       z-index: 1;
@@ -439,6 +462,11 @@
       cursor: pointer;
     }
 
+    .brush-control input[type="range"] {
+      width: 90px;
+      accent-color: var(--accent);
+    }
+
     .size-control input {
       width: 78px;
       accent-color: var(--accent);
@@ -544,6 +572,11 @@
   <main class="app" aria-label="Paint drawing app">
     <canvas id="paintCanvas" aria-label="Drawing canvas"></canvas>
     <canvas id="imageCanvas" aria-label="Image and Shape layer"></canvas>
+
+    <div id="borderHandleNW" class="canvas-border-handle nw" title="Drag to resize the canvas border"></div>
+    <div id="borderHandleNE" class="canvas-border-handle ne" title="Drag to resize the canvas border"></div>
+    <div id="borderHandleSW" class="canvas-border-handle sw" title="Drag to resize the canvas border"></div>
+    <div id="borderHandleSE" class="canvas-border-handle se" title="Drag to resize the canvas border"></div>
 
     <button id="markersButton" class="marker-label" type="button" aria-expanded="false" aria-controls="markersPanel">Markers</button>
     <section id="markersPanel" class="marker-panel" aria-label="Marker options" hidden>
@@ -696,7 +729,7 @@
         <button class="swatch" type="button" data-color="#ec4899" aria-pressed="false" title="Pink" style="background:#ec4899"></button>
         <button id="customColorSwatch" class="swatch custom-color" type="button" data-color="#8b5cf6" aria-pressed="false" title="Custom color" style="background:#8b5cf6"></button>
         <button id="editColorButton" class="tool-button wide" type="button" title="Color options">Color Options</button>
-        <button id="songsButton" class="tool-button wide" type="button" title="Google Gemini">Google Gemini</button>
+        <button id="songsButton" class="tool-button wide" type="button" title="Google Gemini">2G</button>
         <button id="dayNightBtn" class="tool-button wide" type="button" aria-pressed="false" title="Toggle between bright (Day) and dark (Night) mode">☀️ Day Mode</button>
         <input id="colorInput" class="color-picker" type="color" value="#8b5cf6" aria-label="Edit color">
 
@@ -780,6 +813,10 @@
     const editColorButton = document.querySelector("#editColorButton");
     const songsButton = document.querySelector("#songsButton");
     const dayNightBtn = document.querySelector("#dayNightBtn");
+    const borderHandleNW = document.querySelector("#borderHandleNW");
+    const borderHandleNE = document.querySelector("#borderHandleNE");
+    const borderHandleSW = document.querySelector("#borderHandleSW");
+    const borderHandleSE = document.querySelector("#borderHandleSE");
     const colorInput = document.querySelector("#colorInput");
     const customColorSwatch = document.querySelector("#customColorSwatch");
     const brushSelect = document.querySelector("#brushSelect");
@@ -820,27 +857,32 @@
       fallbackFileName: "My_Drawing.png"
     };
 
+    function getCanvasLogicalSize() {
+      const borderWidth = getCurrentCanvasBorderWidth();
+      return {
+        width: Math.max(1, window.innerWidth - borderWidth * 2),
+        height: Math.max(1, window.innerHeight - borderWidth * 2)
+      };
+    }
+
     function resizeCanvas() {
       const snapshot = canvas.width && canvas.height
         ? context.getImageData(0, 0, canvas.width, canvas.height)
         : null;
       const ratio = window.devicePixelRatio || 1;
-      
-      canvas.width = Math.floor(window.innerWidth * ratio);
-      canvas.height = Math.floor(window.innerHeight * ratio);
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
+      const { width: logicalW, height: logicalH } = getCanvasLogicalSize();
+
+      canvas.width = Math.floor(logicalW * ratio);
+      canvas.height = Math.floor(logicalH * ratio);
 
       imageCanvas.width = canvas.width;
       imageCanvas.height = canvas.height;
-      imageCanvas.style.width = canvas.style.width;
-      imageCanvas.style.height = canvas.style.height;
 
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       imageContext.setTransform(ratio, 0, 0, ratio, 0, 0);
 
       context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      context.fillRect(0, 0, logicalW, logicalH);
 
       if (snapshot) {
         const restored = document.createElement("canvas");
@@ -1261,6 +1303,11 @@
     // to the plain flat-stroke look below, completely unchanged from before.
 
     function paintFlatShape(ctx, lx, ly, w, h, shapeType, img) {
+      if (img.fillColor) {
+        ctx.fillStyle = img.fillColor;
+        drawShapePath(ctx, lx, ly, w, h, shapeType);
+        ctx.fill();
+      }
       ctx.strokeStyle = img.color;
       ctx.lineWidth = img.lineWidth;
       ctx.lineCap = "round";
@@ -1439,9 +1486,10 @@
 
     function clearCanvas() {
       saveHistory();
-      context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      const { width: logicalW, height: logicalH } = getCanvasLogicalSize();
+      context.clearRect(0, 0, logicalW, logicalH);
       context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      context.fillRect(0, 0, logicalW, logicalH);
 
       // Also remove any pre-existing floating shapes/images, so Clear truly clears everything
       state.floatingImages = [];
@@ -1471,8 +1519,7 @@
       const img = new Image();
       img.crossOrigin = "anonymous"; 
       img.onload = () => {
-        const logicalW = window.innerWidth;
-        const logicalH = window.innerHeight;
+        const { width: logicalW, height: logicalH } = getCanvasLogicalSize();
 
         let w, h, x, y;
         if (options.fillCanvas) {
@@ -1716,6 +1763,24 @@
           return;
       }
 
+      const multiSelectKey = event.shiftKey || event.ctrlKey || event.metaKey;
+
+      // Shift/Ctrl + click: toggle whichever shape, drawing, or image is under the
+      // pointer in or out of the current multi-selection, without starting a drag.
+      if (multiSelectKey) {
+          for (let i = state.floatingImages.length - 1; i >= 0; i--) {
+              const img = state.floatingImages[i];
+              if (getHitAction(point, img)) {
+                  img.selected = !img.selected;
+                  const stillSelected = state.floatingImages.filter(s => s.selected);
+                  state.activeImage = img.selected ? img : (stillSelected[stillSelected.length - 1] || null);
+                  updateImageInputs();
+                  renderFloatingImages();
+                  return;
+              }
+          }
+      }
+
       // Ctrl+A group drag: if multiple items are selected and the click lands on any one
       // of them, drag the whole selection together instead of moving just one at a time.
       const groupSelection = state.floatingImages.filter(img => img.selected);
@@ -1730,18 +1795,27 @@
           return;
       }
 
-      state.floatingImages.forEach(img => { img.selected = false; });
+      if (!multiSelectKey) {
+          state.floatingImages.forEach(img => { img.selected = false; });
+      }
 
       if (state.floatingImages.length > 0) {
-          // Fill tool: clicking directly on a floating shape flattens just that one in
-          // place and fills it immediately, instead of selecting/dragging it. Everything
-          // else stays floating and stays selectable.
+          // Fill tool: clicking directly on a floating shape fills its interior with the
+          // current color right where it is. The shape stays floating — its border and
+          // selectability are never lost, even when clicking inside it.
           if (state.tool === 'paint') {
               for (let i = state.floatingImages.length - 1; i >= 0; i--) {
-                  if (getHitAction(point, state.floatingImages[i])) {
-                      state.activeImage = state.floatingImages[i];
-                      bakeFloatingObjects();
-                      paintFill(point);
+                  const hitImg = state.floatingImages[i];
+                  if (getHitAction(point, hitImg)) {
+                      if (hitImg.type === 'shape') {
+                          saveHistory();
+                          hitImg.fillColor = state.color;
+                      }
+                      state.activeImage = hitImg;
+                      state.floatingImages.splice(i, 1);
+                      state.floatingImages.push(hitImg);
+                      updateImageInputs();
+                      renderFloatingImages();
                       return;
                   }
               }
@@ -2271,8 +2345,7 @@
     function generateCoolDesign() {
       saveHistory();
 
-      const logicalW = window.innerWidth;
-      const logicalH = window.innerHeight;
+      const { width: logicalW, height: logicalH } = getCanvasLogicalSize();
       const cx = logicalW / 2;
       const cy = logicalH / 2;
 
@@ -2729,6 +2802,82 @@
       setDayNightMode(!document.body.classList.contains('night-mode'));
     });
     // --- END DAY / NIGHT MODE ---
+
+    // --- CANVAS BORDER SIZE ---
+    const CANVAS_BORDER_STORAGE_KEY = 'paintPad.canvasBorderWidth';
+    const CANVAS_BORDER_MAX = 80;
+
+    function loadCanvasBorderWidth() {
+      try {
+        const saved = localStorage.getItem(CANVAS_BORDER_STORAGE_KEY);
+        return saved !== null ? Number(saved) : 2;
+      } catch (err) {
+        return 2;
+      }
+    }
+
+    function saveCanvasBorderWidth(width) {
+      try {
+        localStorage.setItem(CANVAS_BORDER_STORAGE_KEY, String(width));
+      } catch (err) {
+        console.error("Failed to save canvas border size:", err);
+      }
+    }
+
+    function getCurrentCanvasBorderWidth() {
+      return parseFloat(document.documentElement.style.getPropertyValue('--canvas-border-width')) || 0;
+    }
+
+    function setCanvasBorderWidth(width, persist = true) {
+      const clamped = Math.max(0, Math.min(CANVAS_BORDER_MAX, Math.round(width)));
+      const previous = getCurrentCanvasBorderWidth();
+      document.documentElement.style.setProperty('--canvas-border-width', `${clamped}px`);
+      if (clamped !== previous) {
+        resizeCanvas();
+      }
+      if (persist) saveCanvasBorderWidth(clamped);
+    }
+
+    // Dragging any corner handle in or out changes the border thickness on all sides,
+    // the same way dragging a shape/image's corner handle resizes it.
+    function initBorderHandle(el, isLeft, isTop) {
+      let dragging = false;
+      let startDist = 0;
+      let startWidth = 0;
+      let anchorX = 0;
+      let anchorY = 0;
+
+      el.addEventListener('pointerdown', (event) => {
+        dragging = true;
+        anchorX = isLeft ? 0 : window.innerWidth;
+        anchorY = isTop ? 0 : window.innerHeight;
+        startDist = Math.hypot(event.clientX - anchorX, event.clientY - anchorY);
+        startWidth = getCurrentCanvasBorderWidth();
+        el.setPointerCapture(event.pointerId);
+        event.preventDefault();
+      });
+
+      el.addEventListener('pointermove', (event) => {
+        if (!dragging) return;
+        const currentDist = Math.hypot(event.clientX - anchorX, event.clientY - anchorY);
+        setCanvasBorderWidth(startWidth + (currentDist - startDist), false);
+      });
+
+      const endDrag = (event) => {
+        if (!dragging) return;
+        dragging = false;
+        saveCanvasBorderWidth(getCurrentCanvasBorderWidth());
+        if (event && event.pointerId !== undefined) el.releasePointerCapture(event.pointerId);
+      };
+      el.addEventListener('pointerup', endDrag);
+      el.addEventListener('pointercancel', endDrag);
+    }
+
+    initBorderHandle(borderHandleNW, true, true);
+    initBorderHandle(borderHandleNE, false, true);
+    initBorderHandle(borderHandleSW, true, false);
+    initBorderHandle(borderHandleSE, false, false);
+    // --- END CANVAS BORDER SIZE ---
     
     brushSelect.addEventListener("change", () => {
       state.brush = brushSelect.value;
@@ -2747,6 +2896,9 @@
 
     // Initialize Day/Night mode from the last saved preference
     setDayNightMode(loadNightModePreference(), false);
+
+    // Initialize canvas border size from the last saved preference
+    setCanvasBorderWidth(loadCanvasBorderWidth(), false);
 
     resizeCanvas();
     updateSize();
