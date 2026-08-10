@@ -211,12 +211,34 @@
       box-shadow: 0 14px 30px rgb(38 45 56 / 25%);
       display: flex;
       flex-direction: column;
+<<<<<<< HEAD
+      cursor: move;
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     }
 
     .note-slip-panel[hidden] {
       display: none !important;
     }
 
+<<<<<<< HEAD
+    .note-slip-handle {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: var(--panel);
+      border: 2px solid var(--accent);
+      border-radius: 2px;
+      z-index: 21;
+      touch-action: none;
+    }
+    .note-slip-handle.nw { top: -6px; left: -6px; cursor: nwse-resize; }
+    .note-slip-handle.ne { top: -6px; right: -6px; cursor: nesw-resize; }
+    .note-slip-handle.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+    .note-slip-handle.se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     .note-slip-header {
       padding: 8px 12px;
       background: #fde047;
@@ -255,6 +277,10 @@
       font: 400 16px/1.5 Arial, sans-serif;
       color: #1c1917;
       outline: none;
+<<<<<<< HEAD
+      cursor: text;
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     }
 
     .marker-field {
@@ -692,6 +718,13 @@
         <button class="note-slip-close" id="noteSlipClose" title="Close Notes">&times;</button>
       </div>
       <textarea class="note-slip-textarea" placeholder="Type your notes here..." aria-label="Notepad space"></textarea>
+<<<<<<< HEAD
+      <div id="noteSlipHandleNW" class="note-slip-handle nw" title="Drag to resize"></div>
+      <div id="noteSlipHandleNE" class="note-slip-handle ne" title="Drag to resize"></div>
+      <div id="noteSlipHandleSW" class="note-slip-handle sw" title="Drag to resize"></div>
+      <div id="noteSlipHandleSE" class="note-slip-handle se" title="Drag to resize"></div>
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     </div>
 
     <button id="preExistMainBtn" class="pre-exist-label" type="button" aria-expanded="false" aria-controls="preExistPanel">Pre-Exist Drawings</button>
@@ -789,6 +822,13 @@
     const noteSlipPanel = document.querySelector("#noteSlipPanel");
     const noteSlipHeader = document.querySelector("#noteSlipHeader");
     const noteSlipClose = document.querySelector("#noteSlipClose");
+<<<<<<< HEAD
+    const noteSlipHandleNW = document.querySelector("#noteSlipHandleNW");
+    const noteSlipHandleNE = document.querySelector("#noteSlipHandleNE");
+    const noteSlipHandleSW = document.querySelector("#noteSlipHandleSW");
+    const noteSlipHandleSE = document.querySelector("#noteSlipHandleSE");
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
 
     const preExistMainBtn = document.querySelector("#preExistMainBtn");
     const preExistPanel = document.querySelector("#preExistPanel");
@@ -1266,14 +1306,29 @@
         const dg = data[pos + 1] - targetG;
         const db = data[pos + 2] - targetB;
         const da = data[pos + 3] - targetA;
+<<<<<<< HEAD
+        return (dr * dr + dg * dg + db * db + da * da) < 512;
+      };
+
+      // Track exactly which pixels get filled (separate from the pixel data itself),
+      // so the fill can be grown afterward without mistaking already-similar pixels
+      // for ones this fill actually touched.
+      const filledMask = new Uint8Array(width * height);
+
+=======
         return (dr * dr + dg * dg + db * db + da * da) < 128;
       };
 
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       const setPixel = (pos) => {
         data[pos] = color.r;
         data[pos + 1] = color.g;
         data[pos + 2] = color.b;
         data[pos + 3] = 255;
+<<<<<<< HEAD
+        filledMask[pos / 4] = 1;
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       };
 
       const stack = [[startX, startY]];
@@ -1310,6 +1365,41 @@
           pos += 4;
         }
       }
+<<<<<<< HEAD
+
+      // Grow the filled region by a few pixels in every direction, across several
+      // passes. Anti-aliased edge pixels right at a shape or drawing's outline are a
+      // blend of the outline and background color — often too different from the fill
+      // target for matchTarget to catch, and on higher-resolution (e.g. Retina) displays
+      // that blend can span more than one actual pixel. Without this, a thin ring of the
+      // old color is left behind right at the boundary instead of the whole area filling.
+      const DILATE_PASSES = 3;
+      for (let pass = 0; pass < DILATE_PASSES; pass += 1) {
+        const growEdges = [];
+        for (let y = 0; y < height; y += 1) {
+          for (let x = 0; x < width; x += 1) {
+            const idx = y * width + x;
+            if (filledMask[idx]) continue;
+            const neighborFilled =
+              (x > 0 && filledMask[idx - 1]) ||
+              (x < width - 1 && filledMask[idx + 1]) ||
+              (y > 0 && filledMask[idx - width]) ||
+              (y < height - 1 && filledMask[idx + width]);
+            if (neighborFilled) growEdges.push(idx);
+          }
+        }
+        growEdges.forEach(idx => {
+          filledMask[idx] = 1;
+          const pos = idx * 4;
+          data[pos] = color.r;
+          data[pos + 1] = color.g;
+          data[pos + 2] = color.b;
+          data[pos + 3] = 255;
+        });
+      }
+
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       ctx.putImageData(imgData, 0, 0);
     }
 
@@ -1862,7 +1952,14 @@
               if (fillAction) {
                   saveHistory();
                   if (hitImg.type === 'shape') {
+<<<<<<< HEAD
+                      // Recolor the whole shape — both its interior fill and its
+                      // outline/stroke — not just the blank interior.
                       hitImg.fillColor = state.color;
+                      hitImg.color = state.color;
+=======
+                      hitImg.fillColor = state.color;
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
                   } else {
                       // Only flood-fill the connected region that was clicked (e.g. just
                       // the dark screen of an iPad drawing), not the whole picture.
@@ -2766,19 +2863,66 @@
     // --- END KEYBOARD SHORTCUTS ---
 
 
+<<<<<<< HEAD
+    // Note Slip Logic — drag from anywhere on the note (header, background, or its
+    // outline/border), not just the header. The textarea, close button, and resize
+    // handles are excluded so typing, closing, and resizing still work normally.
+=======
     // Note Slip Logic
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     let isDraggingSlip = false;
     let slipStartX = 0; let slipStartY = 0;
     let slipMouseStartX = 0; let slipMouseStartY = 0;
 
+<<<<<<< HEAD
+    // Keeps the note fully inside the drawable canvas (inside the border), so it can
+    // never end up dragged out of reach off-screen or into the border margin.
+    function clampNoteSlipPosition() {
+      if (noteSlipPanel.hidden) return;
+      const borderWidth = getCurrentCanvasBorderWidth();
+      const rect = noteSlipPanel.getBoundingClientRect();
+      const minLeft = borderWidth;
+      const minTop = borderWidth;
+      const maxLeft = Math.max(minLeft, window.innerWidth - borderWidth - rect.width);
+      const maxTop = Math.max(minTop, window.innerHeight - borderWidth - rect.height);
+
+      const clampedLeft = Math.min(maxLeft, Math.max(minLeft, rect.left));
+      const clampedTop = Math.min(maxTop, Math.max(minTop, rect.top));
+
+      noteSlipPanel.style.left = `${clampedLeft}px`;
+      noteSlipPanel.style.top = `${clampedTop}px`;
+    }
+
+    noteSlipPanel.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.note-slip-textarea, .note-slip-close, .note-slip-handle')) return;
+=======
     noteSlipHeader.addEventListener('pointerdown', (e) => {
       if (e.target === noteSlipClose) return;
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       isDraggingSlip = true;
       const rect = noteSlipPanel.getBoundingClientRect();
       slipStartX = rect.left;
       slipStartY = rect.top;
       slipMouseStartX = e.clientX;
       slipMouseStartY = e.clientY;
+<<<<<<< HEAD
+      noteSlipPanel.setPointerCapture(e.pointerId);
+    });
+
+    noteSlipPanel.addEventListener('pointermove', (e) => {
+      if (!isDraggingSlip) return;
+      const borderWidth = getCurrentCanvasBorderWidth();
+      const minLeft = borderWidth;
+      const minTop = borderWidth;
+      const maxLeft = Math.max(minLeft, window.innerWidth - borderWidth - noteSlipPanel.offsetWidth);
+      const maxTop = Math.max(minTop, window.innerHeight - borderWidth - noteSlipPanel.offsetHeight);
+
+      const rawLeft = slipStartX + (e.clientX - slipMouseStartX);
+      const rawTop = slipStartY + (e.clientY - slipMouseStartY);
+
+      noteSlipPanel.style.left = `${Math.min(maxLeft, Math.max(minLeft, rawLeft))}px`;
+      noteSlipPanel.style.top = `${Math.min(maxTop, Math.max(minTop, rawTop))}px`;
+=======
       noteSlipHeader.setPointerCapture(e.pointerId);
     });
 
@@ -2786,21 +2930,101 @@
       if (!isDraggingSlip) return;
       noteSlipPanel.style.left = `${slipStartX + (e.clientX - slipMouseStartX)}px`;
       noteSlipPanel.style.top = `${slipStartY + (e.clientY - slipMouseStartY)}px`;
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     });
 
     const stopDraggingSlip = (e) => {
       if (!isDraggingSlip) return;
       isDraggingSlip = false;
+<<<<<<< HEAD
+      noteSlipPanel.releasePointerCapture(e.pointerId);
+    };
+
+    noteSlipPanel.addEventListener('pointerup', stopDraggingSlip);
+    noteSlipPanel.addEventListener('pointercancel', stopDraggingSlip);
+
+    // Note Slip resize handles — drag any corner to resize to any width/height,
+    // the same way a shape or image's corner handles work.
+    function initNoteSlipResizeHandle(handle, affectsLeft, affectsTop) {
+      const MIN_SIZE = 150;
+      let resizing = false;
+      let startMouseX = 0, startMouseY = 0;
+      let startLeft = 0, startTop = 0, startWidth = 0, startHeight = 0;
+
+      handle.addEventListener('pointerdown', (e) => {
+        resizing = true;
+        const rect = noteSlipPanel.getBoundingClientRect();
+        startLeft = rect.left;
+        startTop = rect.top;
+        startWidth = rect.width;
+        startHeight = rect.height;
+        startMouseX = e.clientX;
+        startMouseY = e.clientY;
+        handle.setPointerCapture(e.pointerId);
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      handle.addEventListener('pointermove', (e) => {
+        if (!resizing) return;
+        const dx = e.clientX - startMouseX;
+        const dy = e.clientY - startMouseY;
+
+        const borderWidth = getCurrentCanvasBorderWidth();
+        // The edge opposite the dragged corner stays fixed as the note resizes, so cap
+        // growth there at the canvas border instead of letting it stretch past it.
+        const maxWidth = affectsLeft
+          ? (startLeft + startWidth - borderWidth)
+          : (window.innerWidth - borderWidth - startLeft);
+        const maxHeight = affectsTop
+          ? (startTop + startHeight - borderWidth)
+          : (window.innerHeight - borderWidth - startTop);
+
+        const desiredWidth = startWidth + (affectsLeft ? -dx : dx);
+        const desiredHeight = startHeight + (affectsTop ? -dy : dy);
+        const newWidth = Math.max(MIN_SIZE, Math.min(maxWidth, desiredWidth));
+        const newHeight = Math.max(MIN_SIZE, Math.min(maxHeight, desiredHeight));
+
+        noteSlipPanel.style.width = `${newWidth}px`;
+        noteSlipPanel.style.height = `${newHeight}px`;
+
+        if (affectsLeft) {
+          noteSlipPanel.style.left = `${startLeft + (startWidth - newWidth)}px`;
+        }
+        if (affectsTop) {
+          noteSlipPanel.style.top = `${startTop + (startHeight - newHeight)}px`;
+        }
+      });
+
+      const endResize = (e) => {
+        if (!resizing) return;
+        resizing = false;
+        handle.releasePointerCapture(e.pointerId);
+      };
+      handle.addEventListener('pointerup', endResize);
+      handle.addEventListener('pointercancel', endResize);
+    }
+
+    initNoteSlipResizeHandle(noteSlipHandleNW, true, true);
+    initNoteSlipResizeHandle(noteSlipHandleNE, false, true);
+    initNoteSlipResizeHandle(noteSlipHandleSW, true, false);
+    initNoteSlipResizeHandle(noteSlipHandleSE, false, false);
+=======
       noteSlipHeader.releasePointerCapture(e.pointerId);
     };
 
     noteSlipHeader.addEventListener('pointerup', stopDraggingSlip);
     noteSlipHeader.addEventListener('pointercancel', stopDraggingSlip);
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
 
     slipsButton.addEventListener('click', () => {
       const isHidden = noteSlipPanel.hidden;
       noteSlipPanel.hidden = !isHidden;
       slipsButton.setAttribute("aria-expanded", String(isHidden));
+<<<<<<< HEAD
+      if (isHidden) clampNoteSlipPosition();
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     });
 
     noteSlipClose.addEventListener('click', () => {
@@ -2950,6 +3174,10 @@
       document.documentElement.style.setProperty('--canvas-border-width', `${clamped}px`);
       if (clamped !== previous) {
         resizeCanvas();
+<<<<<<< HEAD
+        clampNoteSlipPosition();
+=======
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       }
       if (persist) saveCanvasBorderWidth(clamped);
     }
@@ -3005,7 +3233,14 @@
     });
     
     sizeInput.addEventListener("input", updateSize);
+<<<<<<< HEAD
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+      clampNoteSlipPosition();
+    });
+=======
     window.addEventListener("resize", resizeCanvas);
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
 
     // Initialize Pre-Exists on load
     getSavedPreExists().forEach(dataUrl => renderGalleryItem(dataUrl));
@@ -3020,4 +3255,8 @@
     updateSize();
   </script>
 </body>
+<<<<<<< HEAD
 </html>
+=======
+</html>
+>>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
