@@ -211,17 +211,13 @@
       box-shadow: 0 14px 30px rgb(38 45 56 / 25%);
       display: flex;
       flex-direction: column;
-<<<<<<< HEAD
       cursor: move;
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     }
 
     .note-slip-panel[hidden] {
       display: none !important;
     }
 
-<<<<<<< HEAD
     .note-slip-handle {
       position: absolute;
       width: 12px;
@@ -237,8 +233,6 @@
     .note-slip-handle.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
     .note-slip-handle.se { bottom: -6px; right: -6px; cursor: nwse-resize; }
 
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     .note-slip-header {
       padding: 8px 12px;
       background: #fde047;
@@ -277,10 +271,7 @@
       font: 400 16px/1.5 Arial, sans-serif;
       color: #1c1917;
       outline: none;
-<<<<<<< HEAD
       cursor: text;
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     }
 
     .marker-field {
@@ -718,13 +709,10 @@
         <button class="note-slip-close" id="noteSlipClose" title="Close Notes">&times;</button>
       </div>
       <textarea class="note-slip-textarea" placeholder="Type your notes here..." aria-label="Notepad space"></textarea>
-<<<<<<< HEAD
       <div id="noteSlipHandleNW" class="note-slip-handle nw" title="Drag to resize"></div>
       <div id="noteSlipHandleNE" class="note-slip-handle ne" title="Drag to resize"></div>
       <div id="noteSlipHandleSW" class="note-slip-handle sw" title="Drag to resize"></div>
       <div id="noteSlipHandleSE" class="note-slip-handle se" title="Drag to resize"></div>
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     </div>
 
     <button id="preExistMainBtn" class="pre-exist-label" type="button" aria-expanded="false" aria-controls="preExistPanel">Pre-Exist Drawings</button>
@@ -822,13 +810,10 @@
     const noteSlipPanel = document.querySelector("#noteSlipPanel");
     const noteSlipHeader = document.querySelector("#noteSlipHeader");
     const noteSlipClose = document.querySelector("#noteSlipClose");
-<<<<<<< HEAD
     const noteSlipHandleNW = document.querySelector("#noteSlipHandleNW");
     const noteSlipHandleNE = document.querySelector("#noteSlipHandleNE");
     const noteSlipHandleSW = document.querySelector("#noteSlipHandleSW");
     const noteSlipHandleSE = document.querySelector("#noteSlipHandleSE");
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
 
     const preExistMainBtn = document.querySelector("#preExistMainBtn");
     const preExistPanel = document.querySelector("#preExistPanel");
@@ -1306,7 +1291,6 @@
         const dg = data[pos + 1] - targetG;
         const db = data[pos + 2] - targetB;
         const da = data[pos + 3] - targetA;
-<<<<<<< HEAD
         return (dr * dr + dg * dg + db * db + da * da) < 512;
       };
 
@@ -1315,20 +1299,12 @@
       // for ones this fill actually touched.
       const filledMask = new Uint8Array(width * height);
 
-=======
-        return (dr * dr + dg * dg + db * db + da * da) < 128;
-      };
-
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       const setPixel = (pos) => {
         data[pos] = color.r;
         data[pos + 1] = color.g;
         data[pos + 2] = color.b;
         data[pos + 3] = 255;
-<<<<<<< HEAD
         filledMask[pos / 4] = 1;
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       };
 
       const stack = [[startX, startY]];
@@ -1365,7 +1341,6 @@
           pos += 4;
         }
       }
-<<<<<<< HEAD
 
       // Grow the filled region by a few pixels in every direction, across several
       // passes. Anti-aliased edge pixels right at a shape or drawing's outline are a
@@ -1398,8 +1373,6 @@
         });
       }
 
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       ctx.putImageData(imgData, 0, 0);
     }
 
@@ -1952,14 +1925,10 @@
               if (fillAction) {
                   saveHistory();
                   if (hitImg.type === 'shape') {
-<<<<<<< HEAD
                       // Recolor the whole shape — both its interior fill and its
                       // outline/stroke — not just the blank interior.
                       hitImg.fillColor = state.color;
                       hitImg.color = state.color;
-=======
-                      hitImg.fillColor = state.color;
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
                   } else {
                       // Only flood-fill the connected region that was clicked (e.g. just
                       // the dark screen of an iPad drawing), not the whole picture.
@@ -2863,18 +2832,13 @@
     // --- END KEYBOARD SHORTCUTS ---
 
 
-<<<<<<< HEAD
     // Note Slip Logic — drag from anywhere on the note (header, background, or its
     // outline/border), not just the header. The textarea, close button, and resize
     // handles are excluded so typing, closing, and resizing still work normally.
-=======
-    // Note Slip Logic
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     let isDraggingSlip = false;
     let slipStartX = 0; let slipStartY = 0;
     let slipMouseStartX = 0; let slipMouseStartY = 0;
 
-<<<<<<< HEAD
     // Keeps the note fully inside the drawable canvas (inside the border), so it can
     // never end up dragged out of reach off-screen or into the border margin.
     function clampNoteSlipPosition() {
@@ -2895,17 +2859,12 @@
 
     noteSlipPanel.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.note-slip-textarea, .note-slip-close, .note-slip-handle')) return;
-=======
-    noteSlipHeader.addEventListener('pointerdown', (e) => {
-      if (e.target === noteSlipClose) return;
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       isDraggingSlip = true;
       const rect = noteSlipPanel.getBoundingClientRect();
       slipStartX = rect.left;
       slipStartY = rect.top;
       slipMouseStartX = e.clientX;
       slipMouseStartY = e.clientY;
-<<<<<<< HEAD
       noteSlipPanel.setPointerCapture(e.pointerId);
     });
 
@@ -2922,21 +2881,11 @@
 
       noteSlipPanel.style.left = `${Math.min(maxLeft, Math.max(minLeft, rawLeft))}px`;
       noteSlipPanel.style.top = `${Math.min(maxTop, Math.max(minTop, rawTop))}px`;
-=======
-      noteSlipHeader.setPointerCapture(e.pointerId);
-    });
-
-    noteSlipHeader.addEventListener('pointermove', (e) => {
-      if (!isDraggingSlip) return;
-      noteSlipPanel.style.left = `${slipStartX + (e.clientX - slipMouseStartX)}px`;
-      noteSlipPanel.style.top = `${slipStartY + (e.clientY - slipMouseStartY)}px`;
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     });
 
     const stopDraggingSlip = (e) => {
       if (!isDraggingSlip) return;
       isDraggingSlip = false;
-<<<<<<< HEAD
       noteSlipPanel.releasePointerCapture(e.pointerId);
     };
 
@@ -3009,22 +2958,12 @@
     initNoteSlipResizeHandle(noteSlipHandleNE, false, true);
     initNoteSlipResizeHandle(noteSlipHandleSW, true, false);
     initNoteSlipResizeHandle(noteSlipHandleSE, false, false);
-=======
-      noteSlipHeader.releasePointerCapture(e.pointerId);
-    };
-
-    noteSlipHeader.addEventListener('pointerup', stopDraggingSlip);
-    noteSlipHeader.addEventListener('pointercancel', stopDraggingSlip);
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
 
     slipsButton.addEventListener('click', () => {
       const isHidden = noteSlipPanel.hidden;
       noteSlipPanel.hidden = !isHidden;
       slipsButton.setAttribute("aria-expanded", String(isHidden));
-<<<<<<< HEAD
       if (isHidden) clampNoteSlipPosition();
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
     });
 
     noteSlipClose.addEventListener('click', () => {
@@ -3174,10 +3113,7 @@
       document.documentElement.style.setProperty('--canvas-border-width', `${clamped}px`);
       if (clamped !== previous) {
         resizeCanvas();
-<<<<<<< HEAD
         clampNoteSlipPosition();
-=======
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
       }
       if (persist) saveCanvasBorderWidth(clamped);
     }
@@ -3233,14 +3169,10 @@
     });
     
     sizeInput.addEventListener("input", updateSize);
-<<<<<<< HEAD
     window.addEventListener("resize", () => {
       resizeCanvas();
       clampNoteSlipPosition();
     });
-=======
-    window.addEventListener("resize", resizeCanvas);
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
 
     // Initialize Pre-Exists on load
     getSavedPreExists().forEach(dataUrl => renderGalleryItem(dataUrl));
@@ -3255,8 +3187,4 @@
     updateSize();
   </script>
 </body>
-<<<<<<< HEAD
 </html>
-=======
-</html>
->>>>>>> 2312d53b6407448e3034658b425bcd22c2a17629
