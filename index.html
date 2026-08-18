@@ -2995,10 +2995,31 @@
       deleteImageMainBtn.setAttribute("aria-expanded", "false");
     });
 
+    // Keeps the Toolbox fully inside the drawable canvas (inside the border), so it can
+    // never end up dragged out of reach off-screen or into the border margin.
+    function clampToolsPanelPosition() {
+      if (toolsPanel.hidden) return;
+      const borderWidth = getCurrentCanvasBorderWidth();
+      const rect = toolsPanel.getBoundingClientRect();
+      const minLeft = borderWidth;
+      const minTop = borderWidth;
+      const maxLeft = Math.max(minLeft, window.innerWidth - borderWidth - rect.width);
+      const maxTop = Math.max(minTop, window.innerHeight - borderWidth - rect.height);
+
+      const clampedLeft = Math.min(maxLeft, Math.max(minLeft, rect.left));
+      const clampedTop = Math.min(maxTop, Math.max(minTop, rect.top));
+
+      toolsPanel.style.bottom = "auto";
+      toolsPanel.style.right = "auto";
+      toolsPanel.style.left = `${clampedLeft}px`;
+      toolsPanel.style.top = `${clampedTop}px`;
+    }
+
     toolboxButton.addEventListener("click", () => {
       const isOpen = !toolsPanel.hidden;
       toolsPanel.hidden = isOpen;
       toolboxButton.setAttribute("aria-expanded", String(!isOpen));
+      if (!isOpen) clampToolsPanelPosition();
     });
 
     shapeSelect.addEventListener("change", () => {
@@ -3024,8 +3045,17 @@
 
     toolsPanel.addEventListener("pointermove", (event) => {
       if (!isDragging) return;
-      toolsPanel.style.left = `${panelStartX + (event.clientX - dragStartX)}px`;
-      toolsPanel.style.top = `${panelStartY + (event.clientY - dragStartY)}px`;
+      const borderWidth = getCurrentCanvasBorderWidth();
+      const minLeft = borderWidth;
+      const minTop = borderWidth;
+      const maxLeft = Math.max(minLeft, window.innerWidth - borderWidth - toolsPanel.offsetWidth);
+      const maxTop = Math.max(minTop, window.innerHeight - borderWidth - toolsPanel.offsetHeight);
+
+      const rawLeft = panelStartX + (event.clientX - dragStartX);
+      const rawTop = panelStartY + (event.clientY - dragStartY);
+
+      toolsPanel.style.left = `${Math.min(maxLeft, Math.max(minLeft, rawLeft))}px`;
+      toolsPanel.style.top = `${Math.min(maxTop, Math.max(minTop, rawTop))}px`;
     });
 
     const stopDragging = (event) => {
@@ -3114,6 +3144,7 @@
       if (clamped !== previous) {
         resizeCanvas();
         clampNoteSlipPosition();
+        clampToolsPanelPosition();
       }
       if (persist) saveCanvasBorderWidth(clamped);
     }
@@ -3172,6 +3203,7 @@
     window.addEventListener("resize", () => {
       resizeCanvas();
       clampNoteSlipPosition();
+      clampToolsPanelPosition();
     });
 
     // Initialize Pre-Exists on load
